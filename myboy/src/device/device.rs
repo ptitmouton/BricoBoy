@@ -29,6 +29,9 @@ impl Device {
     pub fn run(&mut self) {
         loop {
             self.cpu.execute();
+            if self.ppu.enabled() {
+                self.ppu.cycle();
+            }
         }
     }
 }

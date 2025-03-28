@@ -189,10 +189,10 @@ impl CPU {
         self.register_set
             .set_w(WordRegister::PC, instruction.address);
 
-        // logger::info!(
-        //     "executing: {}",
-        //     self.print_detailed_instruction(instruction)
-        // );
+        logger::info!(
+            "executing: {}",
+            self.print_detailed_instruction(instruction)
+        );
 
         match instruction.instruction_type {
             InstructionType::Nop => {
@@ -256,6 +256,10 @@ impl CPU {
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
                 );
+                println!("source: {}", source);
+                if (source & 0xff00) != 0 {
+                    return 3;
+                }
                 return 2;
             }
             InstructionType::Or => {

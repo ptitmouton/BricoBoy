@@ -4,11 +4,11 @@ use std::{
     cell::RefCell, fmt::Display, num::Wrapping, ops::Add, rc::Rc, thread::sleep, time::Duration,
 };
 
-const SPEED: u64 = 8;
-const CPU_FREQUENCY: u64 = 4_194_304 * SPEED;
-const M_CYCLE_COUNT: u64 = CPU_FREQUENCY / 4;
+pub const CPU_FREQUENCY: u64 = 4_194_304 / 1000; // DBG
+pub const M_CYCLE_COUNT: u64 = CPU_FREQUENCY / 4;
 
-const M_CYCLE_LENGTH: Duration = Duration::from_nanos(1_000 / M_CYCLE_COUNT);
+pub const M_CYCLE_LENGTH: Duration = Duration::from_nanos(1_000_000_000 / M_CYCLE_COUNT);
+pub const T_CYCLE_LENGTH: Duration = Duration::from_nanos(1_000_000_000 / CPU_FREQUENCY);
 
 pub enum InterruptMasterEnableStatus {
     Enabled,
@@ -49,7 +49,7 @@ impl CPU {
             self.io.borrow().read_byte(next_instruction_address),
             next_instruction_address,
         );
-        // println!("Next op: {}", instruction);
+        println!("Next op: {}", instruction);
         let cycles_past = self.run(&instruction);
         self.cycle_count = self.cycle_count.add(Wrapping(cycles_past as u64));
         sleep(M_CYCLE_LENGTH.saturating_mul(cycles_past));

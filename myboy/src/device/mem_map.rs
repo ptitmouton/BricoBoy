@@ -75,10 +75,10 @@ impl MemMap {
     }
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
-        // println!(
-        //     "Write to memory map: Address: {:#06x}, Value: {:#04x}",
-        //     address, value
-        // );
+        println!(
+            "Write to memory map: Address: {:#06x}, Value: {:#04x}",
+            address, value
+        );
         match address {
             0x8000..=0x9FFF => self.video_ram.write_byte(address, value),
             0xC000..=0xDFFF => self.working_ram.write_byte(address, value),
