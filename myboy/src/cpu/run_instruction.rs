@@ -1,4 +1,4 @@
-use crate::{cpu::cpu::InterruptMasterEnableStatus, logger};
+use crate::{cpu::cpu::InterruptMasterEnableStatus, io::if_register::IFRegister, logger};
 
 use super::{
     addressing_mode::AddressingMode,
@@ -8,117 +8,112 @@ use super::{
     register_set::{Flag, WordRegister},
 };
 
-impl CPU<'_> {
+impl CPU {
     pub(super) fn get_source_byte(&self, instruction: &Instruction) -> u8 {
+        let io = self.io.borrow();
         match instruction.source {
-            Some(AddressingMode::ImmediateByte) => {
-                self.memory_map.read_byte(instruction.address + 1)
-            }
+            Some(AddressingMode::ImmediateByte) => io.read_byte(instruction.address + 1),
             Some(AddressingMode::ByteRegister(register)) => *self.register_set.get_b(register),
             Some(AddressingMode::Value(value)) => value,
             Some(AddressingMode::RegisterPointer(register)) => {
                 let address = self.register_set.get_w(register);
-                self.memory_map.read_byte(address)
+                io.read_byte(address)
             }
             Some(AddressingMode::ImmediatePointer) => {
-                let address = self.memory_map.read_word(instruction.address + 1);
-                self.memory_map.read_byte(address)
+                let address = io.read_word(instruction.address + 1);
+                io.read_byte(address)
             }
             Some(AddressingMode::ImmediatePointerHigh) => {
-                let address = 0xff00 + (self.memory_map.read_byte(instruction.address + 1) as u16);
+                let address = 0xff00 + (io.read_byte(instruction.address + 1) as u16);
                 println!(
                     "offset: 0x{:04x}",
-                    (self.memory_map.read_byte(instruction.address + 1) as u16)
+                    (io.read_byte(instruction.address + 1) as u16)
                 );
                 println!("address: 0x{:04x}", address);
-                let content = self.memory_map.read_byte(address);
+                let content = io.read_byte(address);
                 println!("content: 0x{:04x}", address);
                 content
             }
             Some(AddressingMode::RegisterPointerHigh(register)) => {
                 let address = (0xff00 as u16) & (*self.register_set.get_b(register)) as u16;
-                self.memory_map.read_byte(address)
+                io.read_byte(address)
             }
             _ => panic!("No source provided for instruction"),
         }
     }
 
     pub(super) fn get_source_word(&self, instruction: &Instruction) -> u16 {
+        let io = self.io.borrow_mut();
         match instruction.source {
-            Some(AddressingMode::ImmediateWord) => {
-                self.memory_map.read_word(instruction.address + 1)
-            }
+            Some(AddressingMode::ImmediateWord) => io.read_word(instruction.address + 1),
             Some(AddressingMode::WordRegister(register)) => self.register_set.get_w(register),
             Some(AddressingMode::Value(value)) => value.into(),
             Some(AddressingMode::RegisterPointer(register)) => {
                 let address = self.register_set.get_w(register);
-                self.memory_map.read_word(address)
+                io.read_word(address)
             }
             Some(AddressingMode::ImmediatePointer) => {
-                let address = self.memory_map.read_word(instruction.address + 1);
-                self.memory_map.read_word(address)
+                let address = io.read_word(instruction.address + 1);
+                io.read_word(address)
             }
             Some(AddressingMode::ImmediatePointerHigh) => {
-                let address = 0xff00 & self.memory_map.read_byte(instruction.address + 1) as u16;
-                self.memory_map.read_word(address)
+                let address = 0xff00 & io.read_byte(instruction.address + 1) as u16;
+                io.read_word(address)
             }
             Some(AddressingMode::RegisterPointerHigh(register)) => {
                 let address = 0xff00 & *self.register_set.get_b(register) as u16;
-                self.memory_map.read_word(address)
+                io.read_word(address)
             }
             _ => panic!("No source provided for instruction"),
         }
     }
 
     pub(super) fn get_target_byte(&self, instruction: &Instruction) -> u8 {
+        let io = self.io.borrow();
         match instruction.target {
-            Some(AddressingMode::ImmediateByte) => {
-                self.memory_map.read_byte(instruction.address + 1)
-            }
+            Some(AddressingMode::ImmediateByte) => io.read_byte(instruction.address + 1),
             Some(AddressingMode::ByteRegister(register)) => *self.register_set.get_b(register),
             Some(AddressingMode::Value(value)) => value,
             Some(AddressingMode::RegisterPointer(register)) => {
                 let address = self.register_set.get_w(register);
-                self.memory_map.read_byte(address)
+                io.read_byte(address)
             }
             Some(AddressingMode::ImmediatePointer) => {
-                let address = self.memory_map.read_word(instruction.address + 1);
-                self.memory_map.read_byte(address)
+                let address = io.read_word(instruction.address + 1);
+                io.read_byte(address)
             }
             Some(AddressingMode::ImmediatePointerHigh) => {
-                let address =
-                    (0xff00 as u16) & (self.memory_map.read_byte(instruction.address + 1) as u16);
-                self.memory_map.read_byte(address)
+                let address = (0xff00 as u16) & (io.read_byte(instruction.address + 1) as u16);
+                io.read_byte(address)
             }
             Some(AddressingMode::RegisterPointerHigh(register)) => {
                 let address = 0xff00 & (*self.register_set.get_b(register) as u16);
-                self.memory_map.read_byte(address)
+                io.read_byte(address)
             }
             _ => panic!("No target provided for instruction"),
         }
     }
 
     pub(super) fn get_target_word(&self, instruction: &Instruction) -> u16 {
+        let io = self.io.borrow();
         match instruction.target {
-            Some(AddressingMode::ImmediateWord) => {
-                self.memory_map.read_word(instruction.address + 1)
-            }
+            Some(AddressingMode::ImmediateWord) => io.read_word(instruction.address + 1),
             Some(AddressingMode::WordRegister(register)) => self.register_set.get_w(register),
             Some(AddressingMode::RegisterPointer(register)) => {
                 let address = self.register_set.get_w(register);
-                self.memory_map.read_word(address)
+                io.read_word(address)
             }
             Some(AddressingMode::ImmediatePointer) => {
-                let address = self.memory_map.read_word(instruction.address + 1);
-                self.memory_map.read_word(address)
+                let address = io.read_word(instruction.address + 1);
+                io.read_word(address)
             }
             Some(AddressingMode::ImmediatePointerHigh) => {
-                let address = 0xff00 & self.memory_map.read_word(instruction.address + 1);
-                self.memory_map.read_word(address)
+                let address = 0xff00 & io.read_word(instruction.address + 1);
+                io.read_word(address)
             }
             Some(AddressingMode::RegisterPointerHigh(register)) => {
                 let address = 0xff00 & (*self.register_set.get_b(register) as u16);
-                self.memory_map.read_word(address)
+                io.read_word(address)
             }
             _ => {
                 logger::error!("No target provided for instruction: {}", instruction);
@@ -128,58 +123,54 @@ impl CPU<'_> {
     }
 
     pub(super) fn write_target_byte(&mut self, instruction: &Instruction, value: u8) {
+        let mut io = self.io.borrow_mut();
         match instruction.target {
-            Some(AddressingMode::ImmediateByte) => {
-                self.memory_map.write_byte(instruction.address + 1, value)
-            }
+            Some(AddressingMode::ImmediateByte) => io.write_byte(instruction.address + 1, value),
             Some(AddressingMode::ByteRegister(register)) => {
                 self.register_set.set_b(register, value);
             }
             Some(AddressingMode::RegisterPointer(register)) => {
                 let address = self.register_set.get_w(register);
-                self.memory_map.write_byte(address, value)
+                io.write_byte(address, value)
             }
             Some(AddressingMode::ImmediatePointer) => {
-                let address = self.memory_map.read_word(instruction.address + 1);
-                self.memory_map.write_byte(address, value)
+                let address = io.read_word(instruction.address + 1);
+                io.write_byte(address, value)
             }
             Some(AddressingMode::ImmediatePointerHigh) => {
-                let address =
-                    (0xff00) & (self.memory_map.read_byte(instruction.address + 1)) as u16;
-                self.memory_map.write_byte(address, value)
+                let address = (0xff00) & (io.read_byte(instruction.address + 1)) as u16;
+                io.write_byte(address, value)
             }
             Some(AddressingMode::RegisterPointerHigh(register)) => {
                 let address = 0xff00 & (*self.register_set.get_b(register)) as u16;
-                self.memory_map.write_byte(address, value)
+                io.write_byte(address, value)
             }
             _ => panic!("No source provided for instruction"),
         }
     }
 
     pub(super) fn write_target_word(&mut self, instruction: &Instruction, value: u16) {
+        let mut io = self.io.borrow_mut();
         match instruction.target {
-            Some(AddressingMode::ImmediateWord) => {
-                self.memory_map.write_word(instruction.address + 1, value)
-            }
+            Some(AddressingMode::ImmediateWord) => io.write_word(instruction.address + 1, value),
             Some(AddressingMode::WordRegister(register)) => {
                 self.register_set.set_w(register, value)
             }
             Some(AddressingMode::RegisterPointer(register)) => {
                 let address = self.register_set.get_w(register);
-                self.memory_map.write_word(address, value)
+                io.write_word(address, value)
             }
             Some(AddressingMode::ImmediatePointer) => {
-                let address = self.memory_map.read_word(instruction.address + 1);
-                self.memory_map.write_word(address, value)
+                let address = io.read_word(instruction.address + 1);
+                io.write_word(address, value)
             }
             Some(AddressingMode::ImmediatePointerHigh) => {
-                let address =
-                    (0xff00) & (self.memory_map.read_byte(instruction.address + 1)) as u16;
-                self.memory_map.write_word(address, value)
+                let address = (0xff00) & (io.read_byte(instruction.address + 1)) as u16;
+                io.write_word(address, value)
             }
             Some(AddressingMode::RegisterPointerHigh(register)) => {
                 let address = 0xff00 & (*self.register_set.get_b(register) as u16);
-                self.memory_map.write_word(address, value)
+                io.write_word(address, value)
             }
             // We can also use 8-bit targets in 16-bit operations, ops like LDH do require
             // it, so we need to handle it here.
@@ -198,10 +189,10 @@ impl CPU<'_> {
         self.register_set
             .set_w(WordRegister::PC, instruction.address);
 
-        logger::info!(
-            "executing: {}",
-            self.print_detailed_instruction(instruction)
-        );
+        // logger::info!(
+        //     "executing: {}",
+        //     self.print_detailed_instruction(instruction)
+        // );
 
         match instruction.instruction_type {
             InstructionType::Nop => {
@@ -265,9 +256,6 @@ impl CPU<'_> {
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
                 );
-                if instruction.address == 0x0229 {
-                    todo!("STOP");
-                }
                 return 2;
             }
             InstructionType::Or => {
@@ -405,17 +393,17 @@ impl CPU<'_> {
                     let target = self.get_target_byte(instruction);
                     let current =
                         self.register_set.get_w(WordRegister::PC) + instruction.size() as u16;
-                    println!(
-                        "target: u16: {}({:02x}) i8: {}({:02x}) u16:{}({:02x}) #{:08x}=>#{:08x}",
-                        target as u16,
-                        target as u16,
-                        target as i8,
-                        target as i8,
-                        target as i8 as u16,
-                        target as i8 as u16,
-                        current,
-                        current.wrapping_add(target as i8 as u16)
-                    );
+                    // println!(
+                    //     "target: u16: {}({:02x}) i8: {}({:02x}) u16:{}({:02x}) #{:08x}=>#{:08x}",
+                    //     target as u16,
+                    //     target as u16,
+                    //     target as i8,
+                    //     target as i8,
+                    //     target as i8 as u16,
+                    //     target as i8 as u16,
+                    //     current,
+                    //     current.wrapping_add(target as i8 as u16)
+                    // );
                     let result = current.wrapping_add(target as i8 as u16);
                     self.register_set.set_w(WordRegister::PC, result);
                     return 4;
@@ -432,7 +420,8 @@ impl CPU<'_> {
                     WordRegister::SP,
                     self.register_set.get_w(WordRegister::SP) - 2,
                 );
-                self.memory_map
+                self.io
+                    .borrow_mut()
                     .write_word(self.register_set.get_w(WordRegister::SP), source);
                 self.register_set.reset_flags();
                 self.register_set.set_w(
@@ -443,7 +432,8 @@ impl CPU<'_> {
             }
             InstructionType::Pop => {
                 let value = self
-                    .memory_map
+                    .io
+                    .borrow()
                     .read_word(self.register_set.get_w(WordRegister::SP));
                 self.register_set.set_w(
                     WordRegister::SP,
@@ -533,6 +523,19 @@ impl CPU<'_> {
                 );
                 return 1;
             }
+            InstructionType::Stop => {
+                self.interrupt_master_enable = InterruptMasterEnableStatus::Disabled;
+                self.io
+                    .borrow_mut()
+                    .io_registers
+                    .set_if_register(IFRegister(0x00));
+                self.register_set.reset_flags();
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
+                );
+                return 1;
+            }
             instruction_type => {
                 todo!(
                     "The instruction type {} is not implemented",
@@ -547,29 +550,30 @@ impl CPU<'_> {
         instruction: &Instruction,
         addressing: &AddressingMode,
     ) -> String {
+        let io = self.io.borrow();
         return match addressing {
             AddressingMode::ImmediateByte => format!(
                 "imm8([0x{:04x}+1]: 0x{:02x})",
                 instruction.address,
-                self.memory_map.read_byte(instruction.address + 1)
+                io.read_byte(instruction.address + 1)
             ),
             AddressingMode::ImmediateWord => format!(
                 "imm8([0x{:04x}+1]: 0x{:04x})",
                 instruction.address,
-                self.memory_map.read_word(instruction.address + 1)
+                io.read_word(instruction.address + 1)
             ),
             AddressingMode::ImmediatePointer => {
-                let pointer = self.memory_map.read_word(instruction.address + 1);
-                let value = self.memory_map.read_byte(pointer);
+                let pointer = io.read_word(instruction.address + 1);
+                let value = io.read_byte(pointer);
                 format!(
                     "immPtr([[0x{:04x}+1] -> [0x{:04x}]]: 0x{:02x})",
                     instruction.address, pointer, value
                 )
             }
             AddressingMode::ImmediatePointerHigh => {
-                let pointer_high = self.memory_map.read_byte(instruction.address + 1);
-                let pointer = (self.memory_map.read_byte(instruction.address + 1) as u16) & 0xff00;
-                let value = self.memory_map.read_byte(pointer);
+                let pointer_high = io.read_byte(instruction.address + 1);
+                let pointer = (io.read_byte(instruction.address + 1) as u16) & 0xff00;
+                let value = io.read_byte(pointer);
                 format!(
                     "immPtrHigh([[0x{:02x} & 0xff00] ({:02x} & 0xff00) -> [0x{:04x}]]: 0x{:04x})",
                     instruction.address + 1,
@@ -586,13 +590,13 @@ impl CPU<'_> {
             }
             AddressingMode::RegisterPointer(register) => {
                 let pointer = self.register_set.get_w(*register);
-                let value = self.memory_map.read_byte(pointer);
+                let value = io.read_byte(pointer);
                 format!("[{}] -> {:04x}: {:02x}", register, pointer, value)
             }
             AddressingMode::RegisterPointerHigh(register) => {
                 let reg_value = *self.register_set.get_b(*register) as u16;
                 let pointer = (0xff00 as u16) & reg_value;
-                let value = self.memory_map.read_byte(pointer);
+                let value = io.read_byte(pointer);
                 format!(
                     "[0xff00 & {}] -> [0xff00 & {:02x}] -> {:04x}: {:02x}",
                     register, reg_value, pointer, value
@@ -605,14 +609,8 @@ impl CPU<'_> {
     fn condition_met(&mut self, instruction: &Instruction) -> bool {
         match instruction.condition {
             Some(condition) => match condition {
-                Condition::NotZero => {
-                    print!("is_zero?: {}", self.register_set.get_flag(Flag::Zero));
-                    !self.register_set.get_flag(Flag::Zero)
-                }
-                Condition::Zero => {
-                    print!("is_zero?: {}", self.register_set.get_flag(Flag::Zero));
-                    self.register_set.get_flag(Flag::Zero)
-                }
+                Condition::NotZero => !self.register_set.get_flag(Flag::Zero),
+                Condition::Zero => self.register_set.get_flag(Flag::Zero),
                 Condition::NoCarry => !self.register_set.get_flag(Flag::Carry),
                 Condition::Carry => self.register_set.get_flag(Flag::Carry),
             },

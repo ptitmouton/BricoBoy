@@ -17,19 +17,19 @@ pub trait OffsetMemory {
     }
 }
 
-impl OffsetMemory for GenericRam {
+impl OffsetMemory for RWMemory {
     fn offset(&self) -> usize {
         self.offset
     }
 }
 
-impl GenericRam {
+impl RWMemory {
     pub fn read_byte(&self, address: u16) -> u8 {
         self.data[self.map_address(address)]
     }
 
-    pub fn create(size: usize, offset: usize) -> GenericRam {
-        GenericRam {
+    pub fn create(size: usize, offset: usize) -> RWMemory {
+        RWMemory {
             data: vec![0; size],
             offset,
             size,
@@ -37,7 +37,7 @@ impl GenericRam {
     }
 }
 
-impl ReadableMemory for GenericRam {
+impl ReadableMemory for RWMemory {
     fn read_byte(&self, address: u16) -> u8 {
         let mapped_address = self.map_address(address);
         self.data[mapped_address]
@@ -57,7 +57,7 @@ impl ReadableMemory for GenericRam {
     }
 }
 
-impl WritableMemory for GenericRam {
+impl WritableMemory for RWMemory {
     fn write_byte(&mut self, address: u16, value: u8) {
         let mapped_address = self.map_address(address);
         self.data[mapped_address] = value;
@@ -76,7 +76,7 @@ impl WritableMemory for GenericRam {
     }
 }
 
-pub struct GenericRam {
+pub struct RWMemory {
     data: Vec<u8>,
     offset: usize,
     size: usize,

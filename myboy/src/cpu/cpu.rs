@@ -1,6 +1,8 @@
 use super::{instruction::Instruction, register_set::RegisterSet};
-use crate::{cpu::register_set::Flag, memory::memory_map::MemoryMap};
-use std::{fmt::Display, num::Wrapping, ops::Add, thread::sleep, time::Duration};
+use crate::{cpu::register_set::Flag, device::mem_map::MemMap};
+use std::{
+    cell::RefCell, fmt::Display, num::Wrapping, ops::Add, rc::Rc, thread::sleep, time::Duration,
+};
 
 const SPEED: u64 = 8;
 const CPU_FREQUENCY: u64 = 4_194_304 * SPEED;
@@ -14,8 +16,8 @@ pub enum InterruptMasterEnableStatus {
     Disabled,
 }
 
-pub struct CPU<'a> {
-    pub memory_map: &'a mut MemoryMap,
+pub struct CPU {
+    pub io: Rc<RefCell<MemMap>>,
     pub register_set: RegisterSet,
     pub(super) interrupt_master_enable: InterruptMasterEnableStatus,
 
@@ -24,12 +26,12 @@ pub struct CPU<'a> {
     cycle_count: Wrapping<u64>,
 }
 
-impl CPU<'_> {
-    pub fn new<'a>(memory_map: &'a mut MemoryMap) -> CPU<'a> {
+impl CPU {
+    pub fn new(io: Rc<RefCell<MemMap>>) -> CPU {
         let register_set = RegisterSet::default();
 
         CPU {
-            memory_map,
+            io,
             register_set,
             interrupt_master_enable: InterruptMasterEnableStatus::Disabled,
             cycle_count: Wrapping(0),
@@ -44,12 +46,12 @@ impl CPU<'_> {
 
         let next_instruction_address = self.register_set.pc();
         let instruction = Instruction::new(
-            self.memory_map.read_byte(next_instruction_address),
+            self.io.borrow().read_byte(next_instruction_address),
             next_instruction_address,
         );
-        println!("Next op: {}", instruction);
+        // println!("Next op: {}", instruction);
         let cycles_past = self.run(&instruction);
-        self.cycle_count.add(Wrapping(cycles_past as u64));
+        self.cycle_count = self.cycle_count.add(Wrapping(cycles_past as u64));
         sleep(M_CYCLE_LENGTH.saturating_mul(cycles_past));
     }
 
@@ -66,7 +68,7 @@ impl CPU<'_> {
     }
 }
 
-impl Display for CPU<'_> {
+impl Display for CPU {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut flags = String::new();
         if self.register_set.get_flag(Flag::Zero) {

@@ -15,30 +15,11 @@ pub(crate) enum AddressingMode {
     ImmediatePointerHigh,
 }
 
-pub(crate) enum DataType {
-    Byte,
-    Word,
-}
-
 pub(super) trait ImplicitOpCodeSize {
     fn size(&self) -> u8;
 }
 
 impl AddressingMode {
-    pub(crate) fn get_data_type(&self) -> DataType {
-        match self {
-            AddressingMode::Value(_) => DataType::Byte,
-            AddressingMode::ByteRegister(_) => DataType::Byte,
-            AddressingMode::WordRegister(_) => DataType::Word,
-            AddressingMode::RegisterPointer(_) => DataType::Word,
-            AddressingMode::RegisterPointerHigh(_) => DataType::Byte,
-            AddressingMode::ImmediateByte => DataType::Byte,
-            AddressingMode::ImmediateWord => DataType::Word,
-            AddressingMode::ImmediatePointer => DataType::Word,
-            AddressingMode::ImmediatePointerHigh => DataType::Byte,
-        }
-    }
-
     pub(crate) fn get_r8_adressing_mode(opcode: u8) -> AddressingMode {
         match opcode & 0b0000_0111 {
             0b110 => AddressingMode::RegisterPointer(WordRegister::HL),
