@@ -5,3 +5,14 @@ edition = "2024"
 
 [dependencies]
 mygbcartridge = { path = "../mygbcartridge" }
+egui = "0.31.1"
+eframe = { version = "0.31", default-features = false, features = [
+    "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    # "persistence",   # Enable restoring app state when restarting the app.
+    "wayland",       # To support Linux (and CI)
+] }
+egui_extras = "0.31.1"
+features = "0.10.0"
+full = "0.3.0"

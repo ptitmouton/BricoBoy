@@ -73,7 +73,7 @@ impl Default for RegisterSet {
 }
 
 impl RegisterSet {
-    pub(super) fn get_b(&self, register: ByteRegister) -> &u8 {
+    pub(crate) fn get_b(&self, register: ByteRegister) -> &u8 {
         match register {
             ByteRegister::A => &self.a,
             ByteRegister::F => &self.f,
@@ -88,7 +88,7 @@ impl RegisterSet {
             ByteRegister::L => &self.l,
         }
     }
-    pub(super) fn get_w(&self, register: WordRegister) -> u16 {
+    pub(crate) fn get_w(&self, register: WordRegister) -> u16 {
         match register {
             WordRegister::AF => (self.a as u16) << 8 | (self.f as u16),
             WordRegister::BC => (self.b as u16) << 8 | (self.c as u16),
@@ -101,7 +101,7 @@ impl RegisterSet {
             WordRegister::SP => self.sp,
         }
     }
-    pub(super) fn set_b(&mut self, register: ByteRegister, value: u8) -> &u8 {
+    pub(crate) fn set_b(&mut self, register: ByteRegister, value: u8) -> &u8 {
         match register {
             ByteRegister::A => {
                 self.a = value;
@@ -140,7 +140,7 @@ impl RegisterSet {
             }
         }
     }
-    pub(super) fn set_w(&mut self, register: WordRegister, value: u16) {
+    pub(crate) fn set_w(&mut self, register: WordRegister, value: u16) {
         match register {
             WordRegister::AF => {
                 self.a = (value >> 8) as u8;
@@ -168,7 +168,7 @@ impl RegisterSet {
         }
     }
 
-    pub(super) fn get_flag(&self, flag: Flag) -> bool {
+    pub(crate) fn get_flag(&self, flag: Flag) -> bool {
         let mask = match flag {
             Flag::Zero => 0b1000_0000,
             Flag::Subtract => 0b0100_0000,
@@ -179,7 +179,7 @@ impl RegisterSet {
         self.f & mask != 0
     }
 
-    pub(super) fn set_flag(&mut self, flag: Flag, value: bool) {
+    pub(crate) fn set_flag(&mut self, flag: Flag, value: bool) {
         let mask = match flag {
             Flag::Zero => 0b1000_0000,
             Flag::Subtract => 0b0100_0000,

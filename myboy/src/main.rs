@@ -1,19 +1,32 @@
 mod cpu;
 mod device;
 mod io;
-pub mod logger;
 mod memory;
 mod ppu;
-
-use std::path::Path;
-
-use device::device::Device;
+mod ui;
 use ppu::ppu::PPU;
+use ui::app::AppTemplate;
 
 fn main() {
-    let path = Path::new("/Users/arinaldoni/Downloads/tetris.gb");
+    run().expect("Failed to run eframe");
+}
 
-    let mut device = Device::new();
+fn run() -> eframe::Result {
+    let native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([400.0, 300.0])
+            .with_min_inner_size([300.0, 200.0]),
+        ..eframe::NativeOptions::default()
+    };
+    // .with_icon(
+    //     // NOTE: Adding an icon is optional
+    //     eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
+    //         .expect("Failed to load icon"),
+    // ),
 
-    device.load_path(path);
+    eframe::run_native(
+        "MyBoy Gameboy Emulator",
+        native_options,
+        Box::new(|_cc| Ok(Box::new(AppTemplate::default()))),
+    )
 }

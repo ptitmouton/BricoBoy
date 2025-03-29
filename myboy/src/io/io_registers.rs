@@ -43,7 +43,6 @@ impl IORegisters {
     }
 
     pub(crate) fn read_byte(&self, address: u16) -> u8 {
-        println!("Reading from IO register: 0x{:2x}", address);
         let translated_address: usize = (address - self.offset() as u16).into();
         let result = self.data[translated_address];
         println!("Read value: 0x{:2x}", result);

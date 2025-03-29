@@ -1,41 +1,27 @@
-use std::{cell::RefCell, rc::Rc, thread::sleep};
+use crate::device::mem_map::MemMap;
 
-use crate::{cpu::cpu::T_CYCLE_LENGTH, device::mem_map::MemMap};
-
-pub(crate) struct PPU {
-    mem_map: Rc<RefCell<MemMap>>,
-}
+pub(crate) struct PPU {}
 
 impl PPU {
-    pub(crate) fn new(mem_map: Rc<RefCell<MemMap>>) -> PPU {
-        PPU { mem_map }
+    pub(crate) fn new() -> PPU {
+        PPU {}
     }
 
-    pub(crate) fn enabled(&self) -> bool {
-        self.mem_map
-            .borrow()
-            .io_registers
-            .get_lcdl_register()
-            .lcd_enabled()
-    }
-
-    pub(crate) fn cycle(&self) {
-        let current_line = self.mem_map.borrow().io_registers.get_lcd_ly() + 1;
+    pub(crate) fn cycle(&mut self, mem_map: &mut MemMap) {
+        let current_line = mem_map.io_registers.get_lcd_ly() + 1;
         if (current_line as u16) == 153 {
-            self.mem_map.borrow_mut().io_registers.set_lcd_ly(0);
-            sleep(T_CYCLE_LENGTH);
+            mem_map.io_registers.set_lcd_ly(0);
             return;
         }
         if (current_line as u16) >= 144 {
             if current_line == 144 {
                 // trigger vblank
             }
-            self.draw_line(current_line, 1);
-            sleep(T_CYCLE_LENGTH);
+            self.draw_line(mem_map, current_line, 1);
             return;
         }
         if (current_line as u16) < 144 {
-            let lcdstat = self.mem_map.borrow().io_registers.get_lcdstat();
+            let lcdstat = mem_map.io_registers.get_lcdstat();
             let mode = lcdstat & 0b0000_0011;
             let next_mode = match mode {
                 0 => 2,
@@ -44,19 +30,16 @@ impl PPU {
                 1 => 0,
                 _ => panic!("Invalid mode"),
             };
-            self.draw_line(current_line, next_mode);
-            sleep(T_CYCLE_LENGTH);
+            self.draw_line(mem_map, current_line, next_mode);
         }
     }
 
-    pub(crate) fn draw_line(&self, line: u8, mode: u8) {
+    pub(crate) fn draw_line(&mut self, mem_map: &mut MemMap, line: u8, mode: u8) {
         println!("Drawing line {}", line);
-        let mut mem_map = self.mem_map.borrow_mut();
-        mem_map.io_registers.set_lcd_ly(line);
+
         let lcdstat = mem_map.io_registers.get_lcdstat();
         mem_map
             .io_registers
             .set_lcdstat(lcdstat & 0b1111_1100 | mode);
-        sleep(T_CYCLE_LENGTH);
     }
 }

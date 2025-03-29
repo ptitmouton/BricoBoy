@@ -1,8 +1,6 @@
 use super::{instruction::Instruction, register_set::RegisterSet};
 use crate::{cpu::register_set::Flag, device::mem_map::MemMap};
-use std::{
-    cell::RefCell, fmt::Display, num::Wrapping, ops::Add, rc::Rc, thread::sleep, time::Duration,
-};
+use std::{fmt::Display, num::Wrapping, ops::Add, time::Duration};
 
 pub const CPU_FREQUENCY: u64 = 4_194_304 / 1000; // DBG
 pub const M_CYCLE_COUNT: u64 = CPU_FREQUENCY / 4;
@@ -17,42 +15,41 @@ pub enum InterruptMasterEnableStatus {
 }
 
 pub struct CPU {
-    pub io: Rc<RefCell<MemMap>>,
     pub register_set: RegisterSet,
+    pub(crate) current_instruction: Option<Instruction>,
     pub(super) interrupt_master_enable: InterruptMasterEnableStatus,
 
-    running: bool,
-    stepping: bool,
     cycle_count: Wrapping<u64>,
 }
 
 impl CPU {
-    pub fn new(io: Rc<RefCell<MemMap>>) -> CPU {
+    pub fn new() -> CPU {
         let register_set = RegisterSet::default();
 
         CPU {
-            io,
             register_set,
             interrupt_master_enable: InterruptMasterEnableStatus::Disabled,
             cycle_count: Wrapping(0),
-
-            running: true,
-            stepping: false,
+            current_instruction: None,
         }
     }
 
-    pub fn execute(&mut self) {
+    pub fn execute(&mut self, mem_map: &mut MemMap) -> u32 {
         self.check_interrupts();
 
         let next_instruction_address = self.register_set.pc();
+        println!(
+            "Next instruction address: 0x{:04x}",
+            next_instruction_address
+        );
         let instruction = Instruction::new(
-            self.io.borrow().read_byte(next_instruction_address),
+            mem_map.read_byte(next_instruction_address),
             next_instruction_address,
         );
-        println!("Next op: {}", instruction);
-        let cycles_past = self.run(&instruction);
+        let cycles_past = self.run(mem_map, &instruction);
         self.cycle_count = self.cycle_count.add(Wrapping(cycles_past as u64));
-        sleep(M_CYCLE_LENGTH.saturating_mul(cycles_past));
+
+        return cycles_past;
     }
 
     fn check_interrupts(&mut self) {

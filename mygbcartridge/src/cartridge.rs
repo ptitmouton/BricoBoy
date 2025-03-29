@@ -7,7 +7,7 @@ use std::{num::Wrapping, path::Path, slice::SliceIndex};
 
 #[derive(Clone)]
 pub struct Cartridge {
-    data: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
 impl Cartridge {

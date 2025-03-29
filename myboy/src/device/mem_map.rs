@@ -18,7 +18,7 @@ use crate::{
 use mygbcartridge::cartridge::Cartridge;
 
 pub struct MemMap {
-    pub cartridge: Option<Cartridge>,
+    pub(crate) cartridge: Option<Cartridge>,
     pub working_ram: RWMemory,
     pub video_ram: RWMemory,
     pub io_registers: IORegisters,
@@ -30,7 +30,8 @@ impl MemMap {
     pub fn new() -> MemMap {
         let working_ram = RWMemory::create(0x2000, 0xc000);
         let video_ram = RWMemory::create(0x2000, 0x8000);
-        let io_registers = IORegisters::new();
+        let mut io_registers = IORegisters::new();
+        io_registers.init_defaults();
         let hram = RWMemory::create(0x7f, 0xff80);
         let interrupts = 0x00;
 
@@ -75,10 +76,6 @@ impl MemMap {
     }
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
-        println!(
-            "Write to memory map: Address: {:#06x}, Value: {:#04x}",
-            address, value
-        );
         match address {
             0x8000..=0x9FFF => self.video_ram.write_byte(address, value),
             0xC000..=0xDFFF => self.working_ram.write_byte(address, value),
@@ -92,10 +89,6 @@ impl MemMap {
     }
 
     pub fn write_word(&mut self, address: u16, value: u16) {
-        println!(
-            "Write to memory map: Address: {:#06x}, Value: {:#04x}",
-            address, value
-        );
         match address {
             0x8000..=0x9FFF => self.video_ram.write_word(address, value),
             0xC000..=0xDFFF => self.working_ram.write_word(address, value),
