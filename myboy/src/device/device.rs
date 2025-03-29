@@ -4,15 +4,17 @@ use mygbcartridge::cartridge::Cartridge;
 
 use crate::{
     PPU,
-    cpu::cpu::{CPU, M_CYCLE_LENGTH, T_CYCLE_LENGTH},
+    cpu::cpu::{CPU, M_CYCLE_LENGTH},
 };
 
 use super::mem_map::MemMap;
 
 pub(crate) struct Device {
-    pub(crate) ppu: PPU,
-    pub(crate) cpu: CPU,
-    pub(crate) mem_map: MemMap,
+    pub ppu: PPU,
+    pub cpu: CPU,
+    pub mem_map: MemMap,
+
+    pub speed_multiplier: f32,
 
     pub running: bool,
 }
@@ -27,6 +29,7 @@ impl Device {
         Device {
             cpu,
             ppu,
+            speed_multiplier: 1.0,
             mem_map,
             running,
         }
@@ -68,7 +71,7 @@ impl Device {
                             self.ppu.cycle(&mut self.mem_map);
                         }
                     }
-                    let sleep_dur = M_CYCLE_LENGTH * cycle_counts;
+                    let sleep_dur = M_CYCLE_LENGTH.div_f32(self.speed_multiplier) * cycle_counts;
                     println!("Sleeping for {:?}", sleep_dur);
                     thread::sleep(sleep_dur);
                 })

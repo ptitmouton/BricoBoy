@@ -1,5 +1,5 @@
 use egui::Widget;
-use std::{path::Path, thread};
+use std::{ops::Add, path::Path, thread};
 
 use crate::device::device;
 
@@ -43,8 +43,6 @@ impl eframe::App for AppTemplate {
         });
 
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("Debug");
-
             if self.device.mem_map.cartridge.is_some() {
                 ui.horizontal(|ui| {
                     if self.device.running {
@@ -70,6 +68,22 @@ impl eframe::App for AppTemplate {
                             self.device.cycle();
                         }
                     }
+
+                    ui.menu_button(format!("{:.2}x", self.device.speed_multiplier), |ui| {
+                        ui.label("speed multiplier");
+                        ui.horizontal(|ui| {
+                            ui.label("Speed: ");
+                            ui.add_enabled_ui(self.device.speed_multiplier > 0.059, |ui| {
+                                if ui.button("-").clicked() {
+                                    self.device.speed_multiplier -= 0.05;
+                                }
+                            });
+                            ui.label(format!("{:.2}x", self.device.speed_multiplier));
+                            if ui.button("+").clicked() {
+                                self.device.speed_multiplier += 0.05;
+                            }
+                        });
+                    });
                 });
             } else {
                 if ui
@@ -116,7 +130,13 @@ impl eframe::App for AppTemplate {
                 Some(cartridge) => {
                     AsmTextTable {
                         cartridge: cartridge.clone(),
-                        selected_address: None,
+                        selected_address: Some(
+                            self.device
+                                .cpu
+                                .register_set
+                                .get_w(crate::cpu::register_set::WordRegister::PC),
+                        ),
+                        scroll_to_selected: self.device.running,
                     }
                     .ui(ui);
                 }

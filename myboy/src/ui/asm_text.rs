@@ -5,6 +5,7 @@ use mygbcartridge::cartridge::Cartridge;
 pub struct AsmTextTable {
     pub cartridge: Cartridge,
     pub selected_address: Option<u16>,
+    pub scroll_to_selected: bool,
 }
 
 impl egui::Widget for AsmTextTable {
@@ -31,7 +32,7 @@ impl egui::Widget for AsmTextTable {
 
 impl AsmTextTable {
     pub fn asm_text_table(&self, ui: &mut egui::Ui) {
-        TableBuilder::new(ui)
+        self.create_table_builder(ui)
             .striped(true)
             .resizable(false)
             .column(Column::auto().at_most(50.0))
@@ -43,7 +44,6 @@ impl AsmTextTable {
             )
             .column(Column::auto())
             .sense(egui::Sense::click())
-            .scroll_to_row(self.selected_address.unwrap_or_default().into(), None)
             .header(20.0, |mut header| {
                 header.col(|ui| {
                     ui.strong("Address");
@@ -58,6 +58,13 @@ impl AsmTextTable {
             .body(|body| {
                 body.rows(25.0, self.cartridge.data.len(), |mut row| {
                     let index = row.index();
+                    if let Some(selected_address) = self.selected_address {
+                        println!(
+                            "row.index(): {}, self.selected_address: {}",
+                            index, selected_address
+                        );
+                        row.set_selected(selected_address as usize == index);
+                    }
                     row.col(|ui| {
                         ui.label(format!("0x{:04X}", index));
                     });
@@ -69,5 +76,15 @@ impl AsmTextTable {
                     });
                 })
             });
+    }
+
+    fn create_table_builder<'a>(&'a self, ui: &'a mut egui::Ui) -> TableBuilder<'a> {
+        if self.scroll_to_selected {
+            if let Some(target_row) = self.selected_address {
+                return TableBuilder::new(ui).scroll_to_row(target_row as usize, None);
+            }
+        }
+
+        TableBuilder::new(ui)
     }
 }

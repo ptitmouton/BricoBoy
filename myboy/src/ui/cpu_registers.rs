@@ -11,7 +11,7 @@ impl egui::Widget for CPURegisterView<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let regset = self.cpu.register_set;
         ui.vertical(|ui| {
-            ui.heading("CPU registers");
+            ui.heading("registers");
 
             ui.horizontal(|ui| {
                 ui.label("A:");
