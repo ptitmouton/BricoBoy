@@ -1,5 +1,5 @@
 use egui::Widget;
-use std::path::Path;
+use std::{path::Path, thread};
 
 use crate::device::device;
 
@@ -21,7 +21,7 @@ impl Default for AppTemplate {
 
 impl eframe::App for AppTemplate {
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update<'a>(&'a mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
@@ -53,10 +53,17 @@ impl eframe::App for AppTemplate {
                         }
                     } else {
                         if ui.button("Run").clicked() {
-                            self.device.running = true;
-                            println!("wil l start shortly");
-                            let _ = self.device.run();
-                            println!("did start");
+                            unsafe {
+                                let raw_device_pointer =
+                                    &mut self.device as *mut device::Device as usize;
+                                thread::spawn(move || {
+                                    println!("wil l start shortly");
+                                    let raw_device = raw_device_pointer as *mut device::Device;
+                                    let _ =
+                                        <*mut device::Device>::as_mut(raw_device).unwrap().run();
+                                    println!("did start");
+                                });
+                            }
                         }
                         if ui.button("> Step").clicked() {
                             self.device.running = false;

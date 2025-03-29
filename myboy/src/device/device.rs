@@ -38,6 +38,7 @@ impl Device {
     }
 
     pub fn run(&mut self) {
+        self.running = true;
         let _ = self.run_loop();
     }
 
@@ -45,7 +46,7 @@ impl Device {
         self.mem_map.io_registers.get_lcdl_register().lcd_enabled()
     }
 
-    fn run_loop(&mut self) {
+    fn run_loop<'a>(&'a mut self) {
         loop {
             if !self.running {
                 break;
@@ -54,22 +55,24 @@ impl Device {
         }
     }
 
-    pub fn cycle(&mut self) {
+    pub fn cycle<'a>(&'a mut self) {
         // TODO: Let the CPU and PPU run in parallel
         // TODO: seems like UI is unable to update while we are running the device
         thread::scope(|s| {
-            s.spawn(|| {
-                let cycle_counts = self.cpu.execute(&mut self.mem_map);
-                if self.ppu_enabled() {
-                    // ppu cycles in t_cycles, of which there are 4 per m_cycle
-                    for _ in 0..(cycle_counts * 4) {
-                        self.ppu.cycle(&mut self.mem_map);
+            let _ = s
+                .spawn(|| {
+                    let cycle_counts = self.cpu.execute(&mut self.mem_map);
+                    if self.ppu_enabled() {
+                        // ppu cycles in t_cycles, of which there are 4 per m_cycle
+                        for _ in 0..(cycle_counts * 4) {
+                            self.ppu.cycle(&mut self.mem_map);
+                        }
                     }
-                }
-                let sleep_dur = M_CYCLE_LENGTH * cycle_counts;
-                println!("Sleeping for {:?}", sleep_dur);
-                thread::sleep(sleep_dur);
-            });
+                    let sleep_dur = M_CYCLE_LENGTH * cycle_counts;
+                    println!("Sleeping for {:?}", sleep_dur);
+                    thread::sleep(sleep_dur);
+                })
+                .join();
         });
     }
 }
