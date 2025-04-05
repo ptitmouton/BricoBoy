@@ -17,6 +17,10 @@ impl Cartridge {
         }
     }
 
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
+
     pub fn read_byte(&self, address: u16) -> u8 {
         self.data[address as usize]
     }
@@ -26,9 +30,13 @@ impl Cartridge {
     }
 
     pub fn read_fixed_bytes<const L: usize>(&self, address: u16, length: usize) -> &[u8; L] {
-        self.data[(address as usize)..(address as usize) + length]
-            .try_into()
-            .unwrap()
+        match self.data[(address as usize)..(address as usize) + length].try_into() {
+            Ok(bytes) => bytes,
+            Err(err) => panic!(
+                "Failed to convert bytes to fixed length array: {:?} <- Error /// Upsi!",
+                err
+            ),
+        }
     }
 
     pub fn read_range<S>(&self, range: S) -> &[u8]

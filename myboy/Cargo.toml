@@ -1,5 +1,5 @@
 [package]
-name = "myboy"
+name = "bricoboy"
 version = "0.1.0"
 edition = "2024"
 
@@ -16,3 +16,4 @@ eframe = { version = "0.31", default-features = false, features = [
 egui_extras = "0.31.1"
 features = "0.10.0"
 full = "0.3.0"
+rfd = { version = "0.15.3", features = ["gtk3"] }

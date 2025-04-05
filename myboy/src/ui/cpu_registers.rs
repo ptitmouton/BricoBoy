@@ -11,8 +11,6 @@ impl egui::Widget for CPURegisterView<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let regset = self.cpu.register_set;
         ui.vertical(|ui| {
-            ui.heading("registers");
-
             ui.horizontal(|ui| {
                 ui.label("A:");
                 ui.label(format!("{:02X}", regset.get_b(ByteRegister::A)));

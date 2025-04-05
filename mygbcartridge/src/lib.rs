@@ -1,5 +1,5 @@
 pub mod cartridge;
-mod enums;
+pub mod enums;
 
 #[cfg(test)]
 mod tests {

@@ -4,7 +4,7 @@ use super::register_set::{ByteRegister, WordRegister};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum AddressingMode {
-    Value(u8),
+    Target(u16),
     ByteRegister(ByteRegister),
     WordRegister(WordRegister),
     RegisterPointer(WordRegister),
@@ -89,7 +89,7 @@ impl ImplicitOpCodeSize for AddressingMode {
 impl Display for AddressingMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AddressingMode::Value(val) => write!(f, "=0x{:#x}", val),
+            AddressingMode::Target(val) => write!(f, "{:#x}", val),
             AddressingMode::ByteRegister(register) => write!(f, "{}", register),
             AddressingMode::WordRegister(register) => write!(f, "{}", register),
             AddressingMode::RegisterPointer(register) => write!(f, "({})", register),

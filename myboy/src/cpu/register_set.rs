@@ -143,20 +143,24 @@ impl RegisterSet {
     pub(crate) fn set_w(&mut self, register: WordRegister, value: u16) {
         match register {
             WordRegister::AF => {
-                self.a = (value >> 8) as u8;
-                self.f = (value & 0xff) as u8;
+                let byte_values = value.to_le_bytes();
+                self.a = byte_values[1];
+                self.f = byte_values[0];
             }
             WordRegister::BC => {
-                self.b = (value >> 8) as u8;
-                self.c = (value & 0xff) as u8;
+                let byte_values = value.to_le_bytes();
+                self.b = byte_values[1];
+                self.c = byte_values[0];
             }
             WordRegister::DE => {
-                self.d = (value >> 8) as u8;
-                self.e = (value & 0xff) as u8;
+                let byte_values = value.to_le_bytes();
+                self.d = byte_values[1];
+                self.e = byte_values[0];
             }
             WordRegister::HL | WordRegister::HLi | WordRegister::HLd => {
-                self.h = (value >> 8) as u8;
-                self.l = (value & 0xff) as u8;
+                let byte_values = value.to_le_bytes();
+                self.h = byte_values[1];
+                self.l = byte_values[0];
             }
 
             WordRegister::PC => {
@@ -194,12 +198,16 @@ impl RegisterSet {
         }
     }
 
-    pub(super) fn reset_flags(&mut self) {
-        self.f &= 0x0;
+    pub(super) fn sp(&self) -> &u16 {
+        &self.sp
     }
 
-    pub(super) fn pc(&self) -> u16 {
-        self.get_w(WordRegister::PC)
+    pub(super) fn set_sp(&mut self, value: u16) {
+        self.sp = value;
+    }
+
+    pub fn pc(&self) -> &u16 {
+        &self.pc
     }
 }
 

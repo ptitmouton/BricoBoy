@@ -3,12 +3,21 @@ use crate::memory::generic_memory::OffsetMemory;
 use super::{if_register::IFRegister, lcldc_register::LCDCRegister};
 
 pub(crate) struct IORegisters {
-    data: [u8; 0xff],
+    data: [u8; 256],
 }
 
 impl IORegisters {
     pub fn new() -> IORegisters {
-        IORegisters { data: [0; 0xff] }
+        IORegisters { data: [0; 256] }
+    }
+
+    pub fn get_timer_div(&self) -> u8 {
+        self.read_byte(0xff04)
+    }
+
+    pub fn inc_timer_div(&mut self) {
+        println!("Incrementing timer divider");
+        self.write_byte(0xff04, self.read_byte(0xff04).wrapping_add(1));
     }
 
     pub fn get_lcdl_register(&self) -> LCDCRegister {
@@ -42,13 +51,15 @@ impl IORegisters {
         self.write_byte(0xff41, lcdstat);
     }
 
+    #[inline]
     pub(crate) fn read_byte(&self, address: u16) -> u8 {
         let translated_address: usize = (address - self.offset() as u16).into();
         let result = self.data[translated_address];
-        println!("Read value: 0x{:2x}", result);
+        // println!("Read value from: 0x{:4x} ==> 0x{:2x}", address, result);
         result
     }
 
+    #[inline]
     pub(crate) fn write_byte(&mut self, address: u16, value: u8) {
         println!("Writing to IO register: 0x{:2x}", address);
         let translated_address: usize = (address - self.offset() as u16).into();

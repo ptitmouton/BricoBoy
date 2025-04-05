@@ -1,12 +1,10 @@
 use super::{instruction::Instruction, register_set::RegisterSet};
 use crate::{cpu::register_set::Flag, device::mem_map::MemMap};
-use std::{fmt::Display, num::Wrapping, ops::Add, time::Duration};
+use std::{fmt::Display, num::Wrapping, ops::AddAssign, time::Duration};
 
-pub const CPU_FREQUENCY: u64 = 4_194_304 / 1000; // DBG
-pub const M_CYCLE_COUNT: u64 = CPU_FREQUENCY / 4;
+pub const CPU_FREQUENCY: u64 = 4_194_304; // DBG
 
-pub const M_CYCLE_LENGTH: Duration = Duration::from_nanos(1_000_000_000 / M_CYCLE_COUNT);
-pub const T_CYCLE_LENGTH: Duration = Duration::from_nanos(1_000_000_000 / CPU_FREQUENCY);
+pub const CYCLE_LENGTH: Duration = Duration::from_nanos(1_000_000_000 / CPU_FREQUENCY);
 
 pub enum InterruptMasterEnableStatus {
     Enabled,
@@ -19,7 +17,8 @@ pub struct CPU {
     pub(crate) current_instruction: Option<Instruction>,
     pub(super) interrupt_master_enable: InterruptMasterEnableStatus,
 
-    cycle_count: Wrapping<u64>,
+    cycle_counter: Wrapping<u8>,
+    occupied_cycles: u32,
 }
 
 impl CPU {
@@ -29,27 +28,58 @@ impl CPU {
         CPU {
             register_set,
             interrupt_master_enable: InterruptMasterEnableStatus::Disabled,
-            cycle_count: Wrapping(0),
+            cycle_counter: Wrapping(0),
+            occupied_cycles: 0,
             current_instruction: None,
         }
     }
 
-    pub fn execute(&mut self, mem_map: &mut MemMap) -> u32 {
+    pub fn cycle(&mut self, mem_map: &mut MemMap) {
+        self.cycle_counter.add_assign(1);
+        if self.cycle_counter.0 == 0 {
+            // every 256 cycles
+            mem_map.io_registers.inc_timer_div();
+        }
+        if (self.cycle_counter.0 & 0b11) == 0x0 {
+            // every 4 cycles
+            self.m_cycle(mem_map);
+        }
+    }
+
+    pub fn m_cycle(&mut self, mem_map: &mut MemMap) {
+        // a CPU m-cycle (= 4 cycles)
+        if self.occupied_cycles != 0 {
+            self.occupied_cycles -= 1;
+            return;
+        }
         self.check_interrupts();
 
-        let next_instruction_address = self.register_set.pc();
+        let next_instruction_address = *self.register_set.pc();
         println!(
             "Next instruction address: 0x{:04x}",
             next_instruction_address
         );
-        let instruction = Instruction::new(
-            mem_map.read_byte(next_instruction_address),
-            next_instruction_address,
-        );
-        let cycles_past = self.run(mem_map, &instruction);
-        self.cycle_count = self.cycle_count.add(Wrapping(cycles_past as u64));
+        let instruction =
+            Instruction::create(next_instruction_address, &mem_map.cartridge.data).unwrap();
+        self.occupied_cycles = self.run(mem_map, &instruction) - 1;
+    }
 
-        return cycles_past;
+    pub fn is_busy(&self) -> bool {
+        self.occupied_cycles != 0
+    }
+
+    pub(super) fn push_to_stack(&mut self, mem_map: &mut MemMap, value: u16) {
+        let sp = *self.register_set.sp();
+        mem_map.write_byte(sp - 1, (value >> 8) as u8);
+        mem_map.write_byte(sp - 2, (value & 0xff) as u8);
+        self.register_set.set_sp(sp - 2);
+    }
+
+    pub(super) fn pop_from_stack(&mut self, mem_map: &mut MemMap) -> u16 {
+        let sp = *self.register_set.sp();
+        let value = mem_map.read_word(sp);
+        self.register_set.set_sp(sp + 2);
+        value
     }
 
     fn check_interrupts(&mut self) {

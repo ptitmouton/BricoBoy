@@ -1,38 +1,33 @@
-use egui::Widget;
-use std::{ops::Add, path::Path, thread};
+use egui::TopBottomPanel;
+use rfd::FileDialog;
 
-use crate::device::device;
+use crate::emulator::EmulatorInstance;
 
-use super::{asm_text::AsmTextTable, cpu_registers::CPURegisterView};
+use super::emulator_view::EmulatorView;
 
 pub struct AppTemplate {
-    device: device::Device,
-    path: Box<Path>,
+    emulator: Option<EmulatorInstance>,
 }
 
 impl Default for AppTemplate {
     fn default() -> Self {
-        Self {
-            device: device::Device::new(),
-            path: Path::new("/Users/arinaldoni/Downloads/tetris.gb").into(),
-        }
+        Self { emulator: None }
     }
 }
 
 impl eframe::App for AppTemplate {
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update<'a>(&'a mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
-
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+        TopBottomPanel::top("top_panel").show_animated(ctx, self.emulator.is_some(), |ui| {
             egui::menu::bar(ui, |ui| {
                 // NOTE: no File->Quit on web pages!
                 let is_web = cfg!(target_arch = "wasm32");
                 if !is_web {
                     ui.menu_button("File", |ui| {
                         if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     });
                     ui.add_space(16.0);
@@ -40,107 +35,30 @@ impl eframe::App for AppTemplate {
 
                 egui::widgets::global_theme_preference_buttons(ui);
             });
+
+            ui.add(EmulatorView::new(self.emulator.as_mut().unwrap()))
         });
 
-        egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            if self.device.mem_map.cartridge.is_some() {
-                ui.horizontal(|ui| {
-                    if self.device.running {
-                        if ui.button("Pause").clicked() {
-                            self.device.running = false;
-                        }
-                    } else {
-                        if ui.button("Run").clicked() {
-                            unsafe {
-                                let raw_device_pointer =
-                                    &mut self.device as *mut device::Device as usize;
-                                thread::spawn(move || {
-                                    println!("wil l start shortly");
-                                    let raw_device = raw_device_pointer as *mut device::Device;
-                                    let _ =
-                                        <*mut device::Device>::as_mut(raw_device).unwrap().run();
-                                    println!("did start");
-                                });
+        if self.emulator.is_none() {
+            TopBottomPanel::top("root_top_panel").show_animated(
+                ctx,
+                self.emulator.is_none(),
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Select a Gameboy ROM file");
+                        if ui.button("Open").clicked() {
+                            if let Some(file) = FileDialog::new()
+                                .set_title("Select a Gameboy file")
+                                .add_filter("gb files", &["gb"])
+                                .pick_file()
+                            {
+                                let emulator = EmulatorInstance::from_path(file.as_path());
+                                self.emulator = Some(emulator);
                             }
                         }
-                        if ui.button("> Step").clicked() {
-                            self.device.running = false;
-                            self.device.cycle();
-                        }
-                    }
-
-                    ui.menu_button(format!("{:.2}x", self.device.speed_multiplier), |ui| {
-                        ui.label("speed multiplier");
-                        ui.horizontal(|ui| {
-                            ui.label("Speed: ");
-                            ui.add_enabled_ui(self.device.speed_multiplier > 0.059, |ui| {
-                                if ui.button("-").clicked() {
-                                    self.device.speed_multiplier -= 0.05;
-                                }
-                            });
-                            ui.label(format!("{:.2}x", self.device.speed_multiplier));
-                            if ui.button("+").clicked() {
-                                self.device.speed_multiplier += 0.05;
-                            }
-                        });
                     });
-                });
-            } else {
-                if ui
-                    .button("Open")
-                    .on_hover_text("Load a Gameboy ROM file")
-                    .clicked()
-                {
-                    self.device.load_path(&self.path);
-                }
-            }
-
-            ui.separator();
-
-            ui.vertical(|ui| {
-                ui.heading("CPU");
-
-                CPURegisterView {
-                    cpu: &self.device.cpu,
-                }
-                .ui(ui)
-            })
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("Debug");
-
-            // ui.horizontal(|ui| {
-            //     ui.label("Write something: ");
-            //     ui.text_edit_singleline(&mut self.label);
-            // });
-
-            // ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            // if ui.button("Increment").clicked() {
-            //     self.value += 1.0;
-            // }
-
-            // ui.separator();
-
-            match &self.device.mem_map.cartridge {
-                None => {
-                    ui.label("No cartridge loaded");
-                }
-                Some(cartridge) => {
-                    AsmTextTable {
-                        cartridge: cartridge.clone(),
-                        selected_address: Some(
-                            self.device
-                                .cpu
-                                .register_set
-                                .get_w(crate::cpu::register_set::WordRegister::PC),
-                        ),
-                        scroll_to_selected: self.device.running,
-                    }
-                    .ui(ui);
-                }
-            }
-        });
+                },
+            );
+        }
     }
 }

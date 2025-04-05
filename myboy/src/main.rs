@@ -1,5 +1,6 @@
 mod cpu;
 mod device;
+mod emulator;
 mod io;
 mod memory;
 mod ppu;
