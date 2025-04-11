@@ -17,3 +17,5 @@ egui_extras = "0.31.1"
 features = "0.10.0"
 full = "0.3.0"
 rfd = { version = "0.15.3", features = ["gtk3"] }
+clap = { version = "4.5.35", features = ["derive"] }
+clap-num = "1.2.0"

@@ -1,10 +1,11 @@
+use crate::logging::log::{Log, Logger};
 use std::{thread, time::Instant};
 
 use mygbcartridge::cartridge::Cartridge;
 
 use crate::{
     PPU,
-    cpu::cpu::{CPU, CYCLE_LENGTH},
+    cpu::cpu::{CPU, CPUState, CYCLE_LENGTH},
 };
 
 use super::mem_map::MemMap;
@@ -14,17 +15,22 @@ pub(crate) struct Device {
     pub cpu: CPU,
     pub mem_map: MemMap,
 
-    pub speed_multiplier: f32,
+    pub speed_multiplier: f64,
 
     pub running: bool,
 
     pub serial_buffer: Vec<u8>,
 
     pub breakpoint: Option<u16>,
+
+    pub cartridge: Cartridge,
+
+    pub cpu_logger: Option<&'static mut dyn Logger>,
+    pub serial_logger: Option<&'static mut dyn Logger>,
 }
 
 impl Device {
-    pub fn new(cartridge: &Cartridge) -> Device {
+    pub fn new(cartridge: Cartridge) -> Device {
         let mem_map = MemMap::new(cartridge.clone());
         let cpu = CPU::new();
         let ppu = PPU::new();
@@ -34,11 +40,15 @@ impl Device {
         Device {
             cpu,
             ppu,
+            cartridge,
             speed_multiplier: 1.0,
             mem_map,
             running,
             serial_buffer,
-            breakpoint: Some(0x02a0),
+            breakpoint: None,
+            cpu_logger: None,
+            serial_logger: None,
+            // breakpoint: Some(0xcb23),
         }
     }
 
@@ -78,6 +88,8 @@ impl Device {
     }
 
     pub fn step(&mut self) {
+        self.log_cpu_state();
+
         loop {
             self.cycle();
             self.cycle();
@@ -111,29 +123,35 @@ impl Device {
                 }
             }
             let cycle_duration = cycle_start.elapsed();
-            println!(
-                "cycle length: {:?} - gb cycle length: {:?}",
-                cycle_duration, CYCLE_LENGTH
-            );
             let cycle_rest = CYCLE_LENGTH.checked_sub(cycle_duration).unwrap_or_default();
             if cycle_rest.as_nanos() > 0 {
-                let sleep_dur = cycle_rest.div_f32(speed_multiplier);
-                // println!("Sleeping for {:?} ({:?} realtime)", sleep_dur, cycle_rest);
+                let sleep_dur = cycle_rest.div_f64(speed_multiplier);
                 thread::sleep(sleep_dur);
             }
         }
     }
 
     fn check_serial(&mut self) {
-        println!(
-            "Checking serial: {:0x}",
-            self.mem_map.io_registers.read_byte(0xff02)
-        );
         if self.mem_map.io_registers.read_byte(0xff02) == 0x81 {
-            let data = self.mem_map.io_registers.read_byte(0xff01);
+            let data = self.mem_map.io_registers.read_byte(0xff01).clone();
             self.serial_buffer.push(data);
-            println!("Serial data: {:?}", data);
             self.mem_map.io_registers.write_byte(0xff02, 0x00);
+
+            self.log_serial_output(data as char);
+        }
+    }
+
+    fn log_cpu_state(&mut self) {
+        let cpu_state = CPUState::from(self as &Device);
+
+        if let Some(ref mut logger) = self.cpu_logger {
+            logger.info(Log::CPUState(cpu_state))
+        }
+    }
+
+    fn log_serial_output(&mut self, data: char) {
+        if let Some(ref mut logger) = self.serial_logger {
+            logger.info(Log::SerialOutput(data))
         }
     }
 }

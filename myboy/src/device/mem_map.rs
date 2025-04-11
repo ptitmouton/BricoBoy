@@ -53,11 +53,11 @@ impl MemMap {
         match address {
             0x0000..=0x7FFF => self.cartridge.read_byte(address),
             0x8000..=0x9FFF => self.video_ram.read_byte(address),
-            0xA000..=0xBFFF => todo!("Read from External RAM"),
+            0xA000..=0xBFFF => 0x00, // todo!("Read from External RAM"),
             0xC000..=0xDFFF => self.working_ram.read_byte(address),
-            0xE000..=0xFDFF => todo!("Read from Echo RAM"),
+            0xE000..=0xFDFF => self.working_ram.read_byte(address - 0x2000),
             0xFE00..=0xFE9F => self.object_attribute_memory.read_byte(address),
-            0xFEA0..=0xFEFF => todo!("Read from Not Usable"),
+            0xFEA0..=0xFEFF => 0x00, // todo!("Read from Not Usable"),
             0xFF00..=0xFF7F => self.io_registers.read_byte(address),
             0xFF80..=0xFFFE => self.hram.read_byte(address),
             0xFFFF => self.ie_register.0,
@@ -68,12 +68,15 @@ impl MemMap {
         match address {
             0x0000..=0x7FFF => self.cartridge.read_word(address),
             0x8000..=0x9FFF => self.video_ram.read_word(address),
-            0xA000..=0xBFFF => todo!("Read from External RAM"),
+            0xA000..=0xBFFF => 0x0000, // todo!("Read from External RAM"),
             0xC000..=0xDFFF => self.working_ram.read_word(address),
-            0xE000..=0xFDFF => todo!("Read from Echo RAM"),
+            0xE000..=0xFDFF => self.working_ram.read_word(address - 0x2000),
             0xFE00..=0xFE9F => self.object_attribute_memory.read_word(address),
-            0xFEA0..=0xFEFF => todo!("Read from Not Usable"),
-            0xFF00..=0xFF7F => panic!("Cannot read word from I/O registers"),
+            0xFEA0..=0xFEFF => 0x0000, // todo!("Read from Not Usable"),
+            0xFF00..=0xFF7F => u16::from_le_bytes([
+                self.io_registers.read_byte(address),
+                self.io_registers.read_byte(address + 1),
+            ]),
             0xFF80..=0xFFFE => self.hram.read_word(address),
             0xFFFF => panic!("Cannot read words from interrupts"),
         }
@@ -129,13 +132,7 @@ impl MemMap {
                 _ => {}
             },
             0x8000..=0x9FFF => self.video_ram.write_word(address, value),
-            0xC000..=0xDFFF => {
-                println!(
-                    "Writing to working ram at 0x{:04x}: 0x{:04x}",
-                    address, value
-                );
-                self.working_ram.write_word(address, value)
-            }
+            0xC000..=0xDFFF => self.working_ram.write_word(address, value),
             0xFE00..=0xFE9F => self.object_attribute_memory.write_word(address, value),
             0xFEA0..=0xFEFF => {}
             0xFF00..=0xFF7F => panic!("Cannot write word to I/O registers"),

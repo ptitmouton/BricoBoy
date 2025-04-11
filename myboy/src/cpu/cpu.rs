@@ -1,11 +1,21 @@
 use super::{instruction::Instruction, register_set::RegisterSet};
-use crate::{cpu::register_set::Flag, device::mem_map::MemMap};
-use std::{fmt::Display, num::Wrapping, ops::AddAssign, time::Duration};
+use crate::{
+    Device,
+    cpu::register_set::{ByteRegister, Flag, WordRegister},
+    device::mem_map::MemMap,
+};
+use std::{
+    fmt::{Debug, Display},
+    num::Wrapping,
+    ops::AddAssign,
+    time::Duration,
+};
 
 pub const CPU_FREQUENCY: u64 = 4_194_304; // DBG
 
 pub const CYCLE_LENGTH: Duration = Duration::from_nanos(1_000_000_000 / CPU_FREQUENCY);
 
+#[derive(Debug, Clone, Copy)]
 pub enum InterruptMasterEnableStatus {
     Enabled,
     Enabling,
@@ -19,6 +29,70 @@ pub struct CPU {
 
     cycle_counter: Wrapping<u8>,
     occupied_cycles: u32,
+}
+
+#[derive(Clone, Copy)]
+pub struct CPUState {
+    pub register_set: RegisterSet,
+    pub interrupt_master_enable: InterruptMasterEnableStatus,
+    pub current_instruction: Instruction,
+    pub current_instruction_bytes: [u8; 4],
+}
+
+impl Debug for CPUState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let pc = self.register_set.pc();
+        let regset = &self.register_set;
+
+        // let format1: &str = "A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})";
+        // let format2: &str = "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:00:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}";
+
+        write!(
+            f,
+            "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:00:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
+            regset.get_b(ByteRegister::A),
+            regset.get_b(ByteRegister::F),
+            regset.get_b(ByteRegister::B),
+            regset.get_b(ByteRegister::C),
+            regset.get_b(ByteRegister::D),
+            regset.get_b(ByteRegister::E),
+            regset.get_b(ByteRegister::H),
+            regset.get_b(ByteRegister::L),
+            regset.get_w(WordRegister::SP),
+            pc,
+            self.current_instruction_bytes[0],
+            self.current_instruction_bytes[1],
+            self.current_instruction_bytes[2],
+            self.current_instruction_bytes[3],
+        )
+    }
+}
+
+impl From<&Device> for CPUState {
+    fn from(device: &Device) -> Self {
+        let cpu = &device.cpu;
+        let register_set = cpu.register_set.clone();
+        let interrupt_master_enable = cpu.interrupt_master_enable;
+
+        let pc = (*cpu.register_set.pc()).clone();
+        let current_instruction = cpu.current_instruction.unwrap_or_default();
+        let current_bytes = device.mem_map.read_word(pc).to_le_bytes();
+        let next_bytes = device.mem_map.read_word(pc + 2).to_le_bytes();
+
+        let current_instruction_bytes = [
+            current_bytes[0],
+            current_bytes[1],
+            next_bytes[0],
+            next_bytes[1],
+        ];
+
+        CPUState {
+            register_set,
+            interrupt_master_enable,
+            current_instruction,
+            current_instruction_bytes,
+        }
+    }
 }
 
 impl CPU {
@@ -55,12 +129,7 @@ impl CPU {
         self.check_interrupts();
 
         let next_instruction_address = *self.register_set.pc();
-        println!(
-            "Next instruction address: 0x{:04x}",
-            next_instruction_address
-        );
-        let instruction =
-            Instruction::create(next_instruction_address, &mem_map.cartridge.data).unwrap();
+        let instruction = Instruction::create(next_instruction_address, mem_map).unwrap();
         self.occupied_cycles = self.run(mem_map, &instruction) - 1;
     }
 

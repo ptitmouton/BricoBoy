@@ -16,7 +16,6 @@ impl IORegisters {
     }
 
     pub fn inc_timer_div(&mut self) {
-        println!("Incrementing timer divider");
         self.write_byte(0xff04, self.read_byte(0xff04).wrapping_add(1));
     }
 
@@ -54,9 +53,7 @@ impl IORegisters {
     #[inline]
     pub(crate) fn read_byte(&self, address: u16) -> u8 {
         let translated_address: usize = (address - self.offset() as u16).into();
-        let result = self.data[translated_address];
-        // println!("Read value from: 0x{:4x} ==> 0x{:2x}", address, result);
-        result
+        self.data[translated_address]
     }
 
     #[inline]

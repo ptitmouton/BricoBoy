@@ -4,7 +4,10 @@ use super::{
     addressing_mode::{AddressingMode, ImplicitOpCodeSize},
     condition::Condition,
 };
-use crate::cpu::register_set::{ByteRegister, WordRegister};
+use crate::{
+    cpu::register_set::{ByteRegister, WordRegister},
+    device::mem_map::MemMap,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Instruction {
@@ -28,6 +31,7 @@ pub(crate) enum InstructionType {
     DecWord,
     AddByte,
     AddWord,
+    AddSPRelative,
     AddWithCarry,
     Sub,
     SubWithCarry,
@@ -35,14 +39,14 @@ pub(crate) enum InstructionType {
     Xor,
     Or,
     Cp,
-    RollLeft,
-    RollRight,
-    RollLeftThroughCarry,
-    RollRightThroughCarry,
+    RotateLeft,
+    RotateRight,
+    RotateLeftCircular,
+    RotateRightCircular,
     ShiftLeftArithmetically,
     ShiftRightArithmetically,
     Swap,
-    ShiftLeftLogically,
+    ShiftRightLogically,
     DecimalAdjustAccumulator,
     ComplementAccumulator,
     SetCarryFlag,
@@ -64,10 +68,23 @@ pub(crate) enum InstructionType {
     SetBit,
 }
 
+impl Default for Instruction {
+    fn default() -> Self {
+        Instruction {
+            instruction_type: InstructionType::Nop,
+            opcode: 0,
+            address: 0,
+            condition: None,
+            target: None,
+            source: None,
+        }
+    }
+}
+
 impl Instruction {
     // TODO: There is no reason for create to be here
-    pub(crate) fn create(address: u16, data: &Vec<u8>) -> Result<Instruction, String> {
-        let opcode = data[address as usize];
+    pub(crate) fn create(address: u16, data: &MemMap) -> Result<Instruction, String> {
+        let opcode = data.read_byte(address);
         match InstructionType::create_instruction_type(address, data) {
             Ok((instruction_type, (target, source), condition)) => Ok(Instruction {
                 instruction_type,
@@ -102,7 +119,7 @@ impl Instruction {
 impl InstructionType {
     fn create_instruction_type(
         address: u16,
-        data: &Vec<u8>,
+        data: &MemMap,
     ) -> Result<
         (
             InstructionType,
@@ -111,7 +128,7 @@ impl InstructionType {
         ),
         String,
     > {
-        let opcode = data[address as usize];
+        let opcode = data.read_byte(address);
         // /
         //
         // BLOCK: 0
@@ -244,7 +261,7 @@ impl InstructionType {
         if opcode == 0b0000_0111 {
             // 0x07
             return Result::Ok((
-                InstructionType::RollLeft,
+                InstructionType::RotateLeftCircular,
                 (AddressingMode::ByteRegister(ByteRegister::A).into(), None),
                 None,
             ));
@@ -252,7 +269,7 @@ impl InstructionType {
         if opcode == 0b0000_1111 {
             // 0x0F
             return Result::Ok((
-                InstructionType::RollRight,
+                InstructionType::RotateRightCircular,
                 (AddressingMode::ByteRegister(ByteRegister::A).into(), None),
                 None,
             ));
@@ -260,7 +277,7 @@ impl InstructionType {
         if opcode == 0b0001_0111 {
             // 0x17
             return Result::Ok((
-                InstructionType::RollLeftThroughCarry,
+                InstructionType::RotateLeft,
                 (AddressingMode::ByteRegister(ByteRegister::A).into(), None),
                 None,
             ));
@@ -268,7 +285,7 @@ impl InstructionType {
         if opcode == 0b0001_1111 {
             // 0x1F
             return Result::Ok((
-                InstructionType::RollRightThroughCarry,
+                InstructionType::RotateRight,
                 (AddressingMode::ByteRegister(ByteRegister::A).into(), None),
                 None,
             ));
@@ -427,7 +444,10 @@ impl InstructionType {
                     // CP r8
                     return Result::Ok((
                         InstructionType::Cp,
-                        (AddressingMode::get_r8_adressing_mode(opcode).into(), None),
+                        (
+                            AddressingMode::ByteRegister(ByteRegister::A).into(),
+                            AddressingMode::get_r8_adressing_mode(opcode).into(),
+                        ),
                         None,
                     ));
                 }
@@ -524,7 +544,10 @@ impl InstructionType {
                     // CP imm8
                     return Result::Ok((
                         InstructionType::Cp,
-                        (AddressingMode::ImmediateByte.into(), None),
+                        (
+                            AddressingMode::ByteRegister(ByteRegister::A).into(),
+                            AddressingMode::ImmediateByte.into(),
+                        ),
                         None,
                     ));
                 }
@@ -551,7 +574,7 @@ impl InstructionType {
             return Result::Ok((InstructionType::ReturnInterrupt, (None, None), None));
         }
 
-        if (opcode & 0b1110_0111) == 0b1100_0100 {
+        if (opcode & 0b1110_0111) == 0b1100_0010 {
             // JP cond, imm16
             return Result::Ok((
                 InstructionType::Jump,
@@ -645,18 +668,14 @@ impl InstructionType {
 
         if opcode == 0xcb {
             // CB PREFIX
-            let next_opcode = data[address as usize + 1];
-            println!(
-                "Next opcode on addr 0x{:04x}: 0x{:02x} (0b{:08b})",
-                address, next_opcode, next_opcode
-            );
+            let next_opcode = data.read_byte(address + 1);
             if (next_opcode & 0b1100_0000) == 0b0000_0000 {
                 // first two bits are 0
                 match next_opcode & 0b0011_1000 {
                     0b00_0000 => {
                         // RLC r8
                         return Result::Ok((
-                            InstructionType::RollLeft,
+                            InstructionType::RotateLeftCircular,
                             (
                                 AddressingMode::get_r8_adressing_mode(next_opcode).into(),
                                 None,
@@ -667,7 +686,7 @@ impl InstructionType {
                     0b00_1000 => {
                         // RRC r8
                         return Result::Ok((
-                            InstructionType::RollRight,
+                            InstructionType::RotateRightCircular,
                             (
                                 AddressingMode::get_r8_adressing_mode(next_opcode).into(),
                                 None,
@@ -678,7 +697,7 @@ impl InstructionType {
                     0b01_0000 => {
                         // RL r8
                         return Result::Ok((
-                            InstructionType::RollLeftThroughCarry,
+                            InstructionType::RotateLeft,
                             (
                                 AddressingMode::get_r8_adressing_mode(next_opcode).into(),
                                 None,
@@ -689,7 +708,7 @@ impl InstructionType {
                     0b01_1000 => {
                         // RR r8
                         return Result::Ok((
-                            InstructionType::RollRightThroughCarry,
+                            InstructionType::RotateRight,
                             (
                                 AddressingMode::get_r8_adressing_mode(next_opcode).into(),
                                 None,
@@ -733,7 +752,7 @@ impl InstructionType {
                     0b11_1000 => {
                         // SRL r8
                         return Result::Ok((
-                            InstructionType::ShiftLeftLogically,
+                            InstructionType::ShiftRightLogically,
                             (
                                 AddressingMode::get_r8_adressing_mode(next_opcode).into(),
                                 None,
@@ -805,8 +824,8 @@ impl InstructionType {
                 return Result::Ok((
                     InstructionType::LoadHigh,
                     (
-                        AddressingMode::ByteRegister(ByteRegister::A).into(),
                         AddressingMode::ImmediatePointerHigh.into(),
+                        AddressingMode::ByteRegister(ByteRegister::A).into(),
                     ),
                     None,
                 ));
@@ -814,7 +833,7 @@ impl InstructionType {
             0b1110_1010 => {
                 // LD (imm16), A
                 return Result::Ok((
-                    InstructionType::LoadWord,
+                    InstructionType::LoadByte,
                     (
                         AddressingMode::ImmediatePointer.into(),
                         AddressingMode::ByteRegister(ByteRegister::A).into(),
@@ -856,9 +875,9 @@ impl InstructionType {
                 ));
             }
             0b1110_1000 => {
-                // ADD sp, imm8
+                // ADD sp, e
                 return Result::Ok((
-                    InstructionType::AddWord,
+                    InstructionType::AddSPRelative,
                     (
                         AddressingMode::WordRegister(WordRegister::SP).into(),
                         AddressingMode::ImmediateByte.into(),
@@ -915,6 +934,7 @@ impl Display for InstructionType {
             InstructionType::DecWord => write!(f, "DEC"),
             InstructionType::AddByte => write!(f, "ADD"),
             InstructionType::AddWord => write!(f, "ADD"),
+            InstructionType::AddSPRelative => write!(f, "ADD SP+e"),
             InstructionType::AddWithCarry => write!(f, "ADC"),
             InstructionType::Sub => write!(f, "SUB"),
             InstructionType::SubWithCarry => write!(f, "SBC"),
@@ -922,14 +942,14 @@ impl Display for InstructionType {
             InstructionType::Xor => write!(f, "XOR"),
             InstructionType::Or => write!(f, "OR"),
             InstructionType::Cp => write!(f, "CP"),
-            InstructionType::RollLeft => write!(f, "RLC"),
-            InstructionType::RollRight => write!(f, "RRC"),
-            InstructionType::RollLeftThroughCarry => write!(f, "RL"),
-            InstructionType::RollRightThroughCarry => write!(f, "RR"),
+            InstructionType::RotateLeftCircular => write!(f, "RLC"),
+            InstructionType::RotateRight => write!(f, "RRC"),
+            InstructionType::RotateLeft => write!(f, "RL"),
+            InstructionType::RotateRightCircular => write!(f, "RR"),
             InstructionType::ShiftLeftArithmetically => write!(f, "SLA"),
             InstructionType::ShiftRightArithmetically => write!(f, "SRA"),
             InstructionType::Swap => write!(f, "SWAP"),
-            InstructionType::ShiftLeftLogically => write!(f, "SRL"),
+            InstructionType::ShiftRightLogically => write!(f, "SRL"),
             InstructionType::DecimalAdjustAccumulator => write!(f, "DAA"),
             InstructionType::ComplementAccumulator => write!(f, "CPL"),
             InstructionType::SetCarryFlag => write!(f, "SCF"),

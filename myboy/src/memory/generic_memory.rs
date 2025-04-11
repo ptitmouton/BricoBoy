@@ -13,11 +13,6 @@ pub trait WritableMemory {
 pub trait OffsetMemory {
     fn offset(&self) -> usize;
     fn map_address(&self, address: u16) -> usize {
-        println!(
-            "Mapping address: 0x{:04x} to offset: 0x{:04x}",
-            address,
-            self.offset()
-        );
         (address as usize) - self.offset()
     }
 }
@@ -35,7 +30,7 @@ impl RWMemory {
 
     pub fn create(size: usize, offset: usize) -> RWMemory {
         RWMemory {
-            data: vec![0; size],
+            data: vec![0; size + 2],
             offset,
             size,
         }
@@ -45,7 +40,11 @@ impl RWMemory {
 impl ReadableMemory for RWMemory {
     fn read_byte(&self, address: u16) -> u8 {
         let mapped_address = self.map_address(address);
-        self.data[mapped_address]
+        if (mapped_address as usize) >= self.size {
+            0x00
+        } else {
+            self.data[mapped_address]
+        }
     }
 
     fn read_word(&self, address: u16) -> u16 {
