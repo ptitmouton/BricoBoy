@@ -1,14 +1,31 @@
 use crate::memory::generic_memory::OffsetMemory;
 
-use super::{if_register::IFRegister, lcldc_register::LCDCRegister};
+use super::{
+    ie_register::IERegister,
+    if_register::{IFRegister, InterruptType},
+    lcdc::LCDCRegister,
+};
 
-pub(crate) struct IORegisters {
+pub struct IORegisters {
     data: [u8; 256],
+
+    pub ie_register: IERegister,
+    pub if_register: IFRegister,
+    pub lcdc_register: LCDCRegister,
 }
 
 impl IORegisters {
     pub fn new() -> IORegisters {
-        IORegisters { data: [0; 256] }
+        let ie_register = IERegister::new();
+        let if_register = IFRegister::new();
+        let lcdc_register = LCDCRegister::new();
+
+        IORegisters {
+            data: [0; 256],
+            ie_register,
+            if_register,
+            lcdc_register,
+        }
     }
 
     pub fn get_timer_div(&self) -> u8 {
@@ -16,13 +33,24 @@ impl IORegisters {
     }
 
     pub fn inc_timer_div(&mut self) {
+        let current_div = self.read_byte(0xff04);
+        match current_div.overflowing_add(1) {
+            (new_val, false) => {
+                self.write_byte(0xff04, new_val);
+            }
+            (_, true) => {
+                // Reset to 0
+                self.write_byte(0xff04, 0);
+                self.get_if_register()
+                    .request_interrupt(InterruptType::Timer);
+            }
+        }
         self.write_byte(0xff04, self.read_byte(0xff04).wrapping_add(1));
     }
 
     pub fn get_lcdl_register(&self) -> LCDCRegister {
         LCDCRegister(self.read_byte(0xff40))
     }
-
 
     pub fn get_if_register(&self) -> IFRegister {
         IFRegister(self.read_byte(0xff0f))
@@ -32,7 +60,8 @@ impl IORegisters {
     }
 
     pub fn get_lcd_ly(&self) -> u8 {
-        self.read_byte(0xff44)
+        0x90
+        // self.read_byte(0xff44)
     }
 
     pub fn set_lcd_ly(&mut self, line: u8) {
@@ -44,19 +73,24 @@ impl IORegisters {
     }
 
     #[inline]
-    pub(crate) fn read_byte(&self, address: u16) -> u8 {
+    pub fn read_byte(&self, address: u16) -> u8 {
+        if address == 0xff44 {
+            return 0x90;
+        }
         let translated_address: usize = (address - self.offset() as u16).into();
         self.data[translated_address]
     }
 
     #[inline]
-    pub(crate) fn write_byte(&mut self, address: u16, value: u8) {
-        println!("Writing to IO register: 0x{:2x}", address);
+    pub fn write_byte(&mut self, address: u16, value: u8) {
+        if address == 0xff44 {
+            return;
+        }
         let translated_address: usize = (address - self.offset() as u16).into();
         self.data[translated_address] = value;
     }
 
-    pub(crate) fn init_defaults(&mut self) {
+    pub fn init_defaults(&mut self) {
         self.write_byte(0xff00, 0xcf);
         self.write_byte(0xff02, 0x7e);
         self.write_byte(0xff04, 0x18);
@@ -82,7 +116,7 @@ impl IORegisters {
         self.write_byte(0xff26, 0xf1);
         self.write_byte(0xff40, 0x91);
         self.write_byte(0xff41, 0x81);
-        self.write_byte(0xff44, 0x91);
+        self.write_byte(0xff44, 0x90);
         self.write_byte(0xff46, 0xff);
         self.write_byte(0xff47, 0xfc);
     }

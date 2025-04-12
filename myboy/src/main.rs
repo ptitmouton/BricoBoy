@@ -1,14 +1,14 @@
 mod cli;
 mod cpu;
 mod device;
-mod io;
+pub(crate) mod io;
 mod logging;
 mod memory;
 mod ppu;
 mod ui;
 
 use clap::Parser;
-use cli::args::{Cli, Commands, Output};
+use cli::args::{Cli, Commands};
 use device::device::Device;
 use logging::log::{ConsoleLogger, InMemoryLogger, Logger};
 use mygbcartridge::cartridge::Cartridge;
@@ -16,89 +16,101 @@ use ppu::ppu::PPU;
 use ui::{app::AppTemplate, emulator_view::run_emulator};
 
 fn create_default_logger(cli: &Cli) -> Box<dyn Logger> {
-    if cli.dbg_view.is_none_or(|v| v == true) {
+    if cli.headless {
         Box::new(InMemoryLogger::default())
     } else {
         Box::new(ConsoleLogger::default())
     }
 }
 
-fn create_device(
-    cli: &Cli,
-    default_logger: &'static mut dyn Logger,
-) -> Option<&'static mut Device> {
-    let mut result: Option<&'static mut Device> = None;
+fn create_default_device(cli: &Cli) -> Option<Device> {
     match &cli.command {
-        Some(Commands::Run {
+        Some(Commands::Device {
             breakpoint,
             file,
-            output,
+            log_outputs,
         }) => {
             if let Some(path) = file {
+                let mut logger = create_default_logger(cli);
+                if let Some(log_outputs) = log_outputs {
+                    logger.set_supported_outputs(log_outputs.clone());
+                }
+
                 let cartridge = Cartridge::new(path);
-                let mut dev = Box::new(Device::new(cartridge));
-                // println!("Cartridge loaded: {:?}", dev.cartridge.get_title());
+                let mut dev = Device::new(cartridge);
+                dev.logger = logger;
                 if let Some(bp) = breakpoint {
                     dev.breakpoint = Some(*bp);
                 }
 
-                match output {
-                    Some(Output::Serial) => dev.serial_logger = Some(default_logger),
-                    Some(Output::CPUStates) => dev.cpu_logger = Some(default_logger),
-                    None => {}
-                }
-
-                result.replace(Box::leak(dev));
+                return Some(dev);
             }
-        }
-        None => {
-            panic!("No command provided");
-        }
-    };
 
-    result
+            return None;
+        }
+        None => None,
+    }
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    let default_logger = create_default_logger(&cli);
+    let mut logger = create_default_logger(&cli);
 
-    let default_logger: &'static mut dyn Logger = Box::leak(default_logger);
-    // default_logger.info(logging::log::Log::Msg(
-    //     "Starting MyBoy Gameboy Emulator".to_string(),
-    // ));
+    logger.info(logging::log::Log::Msg(
+        "Starting MyBoy Gameboy Emulator".to_string(),
+    ));
 
-    let _ = run(&cli, create_device(&cli, default_logger));
-}
+    let command = cli.command.clone().unwrap_or(Commands::Device {
+        breakpoint: None,
+        file: None,
+        log_outputs: None,
+    });
 
-fn run(cli: &Cli, emulator: Option<&'static mut Device>) -> eframe::Result {
-    if cli.dbg_view.is_none_or(|v| v == true) {
-        let native_options = eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default()
-                .with_inner_size([400.0, 300.0])
-                .with_min_inner_size([300.0, 200.0]),
-            ..eframe::NativeOptions::default()
-        };
-        // .with_icon(
-        //     // NOTE: Adding an icon is optional
-        //     eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
-        //         .expect("Failed to load icon"),
-        // ),
+    match command {
+        Commands::Device { .. } => {
+            logger.info(logging::log::Log::Msg("Creating device".to_string()));
+            let device = create_default_device(&cli);
 
-        eframe::run_native(
-            "MyBoy Gameboy Emulator",
-            native_options,
-            Box::new(|_cc| Ok(Box::new(AppTemplate::new(emulator)))),
-        )
-    } else {
-        match run_emulator(emulator.unwrap()) {
-            Err(msg) => panic!("{}", msg),
-            Ok(handle) => {
-                handle.join().unwrap();
-
-                Result::Ok(())
+            if cli.headless {
+                if device.is_none() {
+                    logger.error(logging::log::Log::Msg(
+                        "No ROM file provided. Exiting.".to_string(),
+                    ));
+                    return;
+                }
+                _ = run_device_headless(device.unwrap());
+            } else {
+                _ = open_device_view(device);
             }
         }
     }
+}
+
+fn run_device_headless(device: Device) -> Result<(), String> {
+    let device = Box::leak(Box::new(device));
+
+    run_emulator(device)?
+        .join()
+        .map_err(|e| format!("Failed to run emulator in headless mode: {:?}", e))
+}
+
+fn open_device_view(device: Option<Device>) -> eframe::Result {
+    let native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([400.0, 300.0])
+            .with_min_inner_size([300.0, 200.0]),
+        ..eframe::NativeOptions::default()
+    };
+    // .with_icon(
+    //     // NOTE: Adding an icon is optional
+    //     eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
+    //         .expect("Failed to load icon"),
+    // ),
+
+    eframe::run_native(
+        "MyBoy Gameboy Emulator",
+        native_options,
+        Box::new(|_cc| Ok(Box::new(AppTemplate::new(device)))),
+    )
 }

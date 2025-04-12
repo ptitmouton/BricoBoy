@@ -7,7 +7,7 @@ use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 
 use crate::{
     Device,
-    cpu::{addressing_mode::AddressingMode, instruction::Instruction, register_set::RegisterSet},
+    cpu::{AddressingMode, Instruction, RegisterSet},
     device::mem_map::MemMap,
 };
 

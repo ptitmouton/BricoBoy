@@ -7,12 +7,12 @@ use crate::Device;
 use super::emulator_view::EmulatorView;
 
 pub struct AppTemplate {
-    device: Option<&'static mut Device>,
+    device: Option<Device>,
 }
 
 impl AppTemplate {
-    pub fn new(device: Option<&'static mut Device>) -> Self {
-        Self { device }
+    pub fn new(device: Option<Device>) -> AppTemplate {
+        AppTemplate { device }
     }
 }
 
@@ -53,8 +53,8 @@ impl eframe::App for AppTemplate {
                                 .pick_file()
                             {
                                 let cartridge = Cartridge::new(file.as_path());
-                                let emulator = Box::new(Device::new(cartridge));
-                                self.device.replace(Box::leak(emulator));
+                                let device = Device::new(cartridge);
+                                self.device = Some(device);
                             }
                         }
                     });

@@ -1,11 +1,14 @@
-use crate::logging::log::{Log, Logger};
+use crate::{
+    cpu::CYCLE_LENGTH,
+    logging::log::{ConsoleLogger, Log, Logger},
+};
 use std::{thread, time::Instant};
 
 use mygbcartridge::cartridge::Cartridge;
 
 use crate::{
     PPU,
-    cpu::cpu::{CPU, CPUState, CYCLE_LENGTH},
+    cpu::{CPU, CPUState},
 };
 
 use super::mem_map::MemMap;
@@ -25,8 +28,7 @@ pub(crate) struct Device {
 
     pub cartridge: Cartridge,
 
-    pub cpu_logger: Option<&'static mut dyn Logger>,
-    pub serial_logger: Option<&'static mut dyn Logger>,
+    pub logger: Box<dyn Logger>,
 }
 
 impl Device {
@@ -36,6 +38,7 @@ impl Device {
         let ppu = PPU::new();
         let running = false;
         let serial_buffer = Vec::new();
+        let logger = Box::new(ConsoleLogger::default());
 
         Device {
             cpu,
@@ -46,8 +49,7 @@ impl Device {
             running,
             serial_buffer,
             breakpoint: None,
-            cpu_logger: None,
-            serial_logger: None,
+            logger,
             // breakpoint: Some(0xcb23),
         }
     }
@@ -144,14 +146,10 @@ impl Device {
     fn log_cpu_state(&mut self) {
         let cpu_state = CPUState::from(self as &Device);
 
-        if let Some(ref mut logger) = self.cpu_logger {
-            logger.info(Log::CPUState(cpu_state))
-        }
+        self.logger.info(Log::CPUState(cpu_state))
     }
 
     fn log_serial_output(&mut self, data: char) {
-        if let Some(ref mut logger) = self.serial_logger {
-            logger.info(Log::SerialOutput(data))
-        }
+        self.logger.info(Log::SerialOutput(data))
     }
 }

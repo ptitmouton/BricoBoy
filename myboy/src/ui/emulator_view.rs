@@ -2,7 +2,9 @@ use std::thread::{self, JoinHandle};
 
 use egui::{CentralPanel, CollapsingHeader, Response, RichText, SidePanel, Widget};
 
-use crate::device::device::Device;
+use crate::{
+    cpu::InterruptMasterEnableStatus, device::device::Device, io::if_register::InterruptType,
+};
 
 use super::{
     asm_text::AsmTextTable, cpu_registers::CPURegisterView, io_registers::IORegisterView,
@@ -101,35 +103,100 @@ impl Widget for EmulatorView<'_> {
                 CollapsingHeader::new("Interrupts")
                     .default_open(true)
                     .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.columns(2, |columns| {
+                        ui.vertical(|ui| {
+                            ui.label(format!(
+                                "IME: {:?}",
+                                self.device.cpu.interrupt_master_enable
+                            ));
+                            ui.columns(3, |columns| {
                                 columns[0].label("");
                                 columns[1].label(RichText::new("enabled?").size(10.0));
+                                columns[2].label(RichText::new("requested?").size(10.0));
 
                                 columns[0].label("V-Blank: ");
                                 columns[1].label(format!(
                                     "{}",
-                                    self.device.mem_map.ie_register.is_vblank_handler_enabled()
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .ie_register
+                                        .is_vblank_handler_enabled()
+                                ));
+                                columns[2].label(format!(
+                                    "{}",
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .if_register
+                                        .is_requested(InterruptType::VBlank)
                                 ));
                                 columns[0].label("LCD Stat: ");
                                 columns[1].label(format!(
                                     "{}",
-                                    self.device.mem_map.ie_register.is_lcd_handler_enabled()
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .ie_register
+                                        .is_lcd_handler_enabled()
+                                ));
+                                columns[2].label(format!(
+                                    "{}",
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .if_register
+                                        .is_requested(InterruptType::LCDStat)
                                 ));
                                 columns[0].label("Timer: ");
                                 columns[1].label(format!(
                                     "{}",
-                                    self.device.mem_map.ie_register.is_timer_handler_enabled()
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .ie_register
+                                        .is_timer_handler_enabled()
+                                ));
+                                columns[2].label(format!(
+                                    "{}",
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .if_register
+                                        .is_requested(InterruptType::Timer)
                                 ));
                                 columns[0].label("Serial: ");
                                 columns[1].label(format!(
                                     "{}",
-                                    self.device.mem_map.ie_register.is_serial_handler_enabled()
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .ie_register
+                                        .is_serial_handler_enabled()
+                                ));
+                                columns[2].label(format!(
+                                    "{}",
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .if_register
+                                        .is_requested(InterruptType::Serial)
                                 ));
                                 columns[0].label("Joypad: ");
                                 columns[1].label(format!(
                                     "{}",
-                                    self.device.mem_map.ie_register.is_joypad_handler_enabled()
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .ie_register
+                                        .is_joypad_handler_enabled()
+                                ));
+                                columns[2].label(format!(
+                                    "{}",
+                                    self.device
+                                        .mem_map
+                                        .io()
+                                        .if_register
+                                        .is_requested(InterruptType::Joypad)
                                 ));
                             });
                         });

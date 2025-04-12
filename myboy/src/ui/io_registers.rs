@@ -1,6 +1,6 @@
 use egui::RichText;
 
-use crate::io::io_registers::IORegisters;
+use crate::io::{if_register::InterruptType, io_registers::IORegisters};
 
 pub struct IORegisterView<'a> {
     pub registers: &'a IORegisters,
@@ -9,12 +9,6 @@ pub struct IORegisterView<'a> {
 impl egui::Widget for IORegisterView<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
-            ui.label(RichText::new("Timer and Divider Registers").underline());
-            ui.horizontal(|ui| {
-                ui.label("Timer Divider Register (#FF04):");
-                ui.label(format!("0x{:02X}", self.registers.get_timer_div()));
-            });
-
             let lcdc_reg = self.registers.get_lcdl_register();
             ui.label(RichText::new("LCD-Control Register (#FF40)").underline());
             ui.horizontal(|ui| {
@@ -48,31 +42,6 @@ impl egui::Widget for IORegisterView<'_> {
             ui.horizontal(|ui| {
                 ui.label("BG Display:");
                 ui.label(format!("{}", lcdc_reg.bg_enabled()));
-            });
-
-            ui.separator();
-
-            ui.label(RichText::new("Interrupt Flag Register (#FF0F)").underline());
-            let if_reg = self.registers.get_if_register();
-            ui.horizontal(|ui| {
-                ui.label("V-Blank intr. requested:");
-                ui.label(format!("{}", if_reg.is_vblank()));
-            });
-            ui.horizontal(|ui| {
-                ui.label("LCD stat intr. requested:");
-                ui.label(format!("{}", if_reg.is_lcd_stat()));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Timer intr. requested:");
-                ui.label(format!("{}", if_reg.is_timer()));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Serial intr. requested:");
-                ui.label(format!("{}", if_reg.is_serial()));
-            });
-            ui.horizontal(|ui| {
-                ui.label("Joypad intr. requested:");
-                ui.label(format!("{}", if_reg.is_joypad()));
             });
 
             ui.separator();

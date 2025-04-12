@@ -3,34 +3,31 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use clap_num::maybe_hex;
 
+use crate::logging::log::LogOutput;
+
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
+    #[arg(short, long)]
     pub name: Option<String>,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
 
-    #[arg(short, long)]
-    pub dbg_view: Option<bool>,
+    #[arg(long)]
+    pub headless: bool,
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
-pub enum Output {
-    Serial,
-    CPUStates,
-}
-
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
-    Run {
-        #[arg(short, long, value_parser=maybe_hex::<u16>)]
+    Device {
+        #[arg(long, value_parser=maybe_hex::<u16>)]
         breakpoint: Option<u16>,
 
         #[arg(short, long)]
         file: Option<PathBuf>,
 
-        #[arg(short, long)]
-        output: Option<Output>,
+        #[arg(long)]
+        log_outputs: Option<Vec<LogOutput>>,
     },
 }

@@ -1,4 +1,6 @@
-pub(crate) mod ie_register;
-pub(crate) mod if_register;
+pub(crate) mod interrupts;
 pub(crate) mod io_registers;
-pub(crate) mod lcldc_register;
+pub(crate) mod registers;
+
+pub(crate) use interrupts::*;
+pub(crate) use registers::*;

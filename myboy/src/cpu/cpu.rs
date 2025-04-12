@@ -1,8 +1,8 @@
 use super::{instruction::Instruction, register_set::RegisterSet};
 use crate::{
-    Device,
-    cpu::register_set::{ByteRegister, Flag, WordRegister},
+    cpu::register_set::{Flag, WordRegister},
     device::mem_map::MemMap,
+    io::if_register::InterruptType,
 };
 use std::{
     fmt::{Debug, Display},
@@ -24,69 +24,12 @@ pub enum InterruptMasterEnableStatus {
 
 pub struct CPU {
     pub register_set: RegisterSet,
-    pub(crate) current_instruction: Option<Instruction>,
-    pub(super) interrupt_master_enable: InterruptMasterEnableStatus,
+    pub current_instruction: Option<Instruction>,
+    pub interrupt_master_enable: InterruptMasterEnableStatus,
 
+    stopped: bool,
     cycle_counter: Wrapping<u8>,
     occupied_cycles: u32,
-}
-
-#[derive(Clone, Copy)]
-pub struct CPUState {
-    pub register_set: RegisterSet,
-    pub current_instruction_bytes: [u8; 4],
-}
-
-impl Debug for CPUState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let pc = self.register_set.pc();
-        let regset = &self.register_set;
-
-        // let format1: &str = "A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})";
-        // let format2: &str = "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}";
-
-        write!(
-            f,
-            "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
-            regset.get_b(ByteRegister::A),
-            regset.get_b(ByteRegister::F),
-            regset.get_b(ByteRegister::B),
-            regset.get_b(ByteRegister::C),
-            regset.get_b(ByteRegister::D),
-            regset.get_b(ByteRegister::E),
-            regset.get_b(ByteRegister::H),
-            regset.get_b(ByteRegister::L),
-            regset.get_w(WordRegister::SP),
-            pc,
-            self.current_instruction_bytes[0],
-            self.current_instruction_bytes[1],
-            self.current_instruction_bytes[2],
-            self.current_instruction_bytes[3],
-        )
-    }
-}
-
-impl From<&Device> for CPUState {
-    fn from(device: &Device) -> Self {
-        let cpu = &device.cpu;
-        let register_set = cpu.register_set.clone();
-
-        let pc = (*cpu.register_set.pc()).clone();
-        let current_bytes = device.mem_map.read_word(pc).to_le_bytes();
-        let next_bytes = device.mem_map.read_word(pc + 2).to_le_bytes();
-
-        let current_instruction_bytes = [
-            current_bytes[0],
-            current_bytes[1],
-            next_bytes[0],
-            next_bytes[1],
-        ];
-
-        CPUState {
-            register_set,
-            current_instruction_bytes,
-        }
-    }
 }
 
 impl CPU {
@@ -99,6 +42,7 @@ impl CPU {
             cycle_counter: Wrapping(0),
             occupied_cycles: 0,
             current_instruction: None,
+            stopped: false,
         }
     }
 
@@ -106,7 +50,9 @@ impl CPU {
         self.cycle_counter.add_assign(1);
         if self.cycle_counter.0 == 0 {
             // every 256 cycles
-            mem_map.io_registers.inc_timer_div();
+            if !self.stopped {
+                mem_map.io_registers.inc_timer_div();
+            }
         }
         if (self.cycle_counter.0 & 0b11) == 0x0 {
             // every 4 cycles
@@ -120,7 +66,7 @@ impl CPU {
             self.occupied_cycles -= 1;
             return;
         }
-        self.check_interrupts();
+        self.check_interrupts(mem_map);
 
         let next_instruction_address = *self.register_set.pc();
         let instruction = Instruction::create(next_instruction_address, mem_map).unwrap();
@@ -146,10 +92,20 @@ impl CPU {
         value
     }
 
-    fn check_interrupts(&mut self) {
+    fn check_interrupts(&mut self, mem_map: &mut MemMap) {
         match self.interrupt_master_enable {
             InterruptMasterEnableStatus::Enabled => {
                 // Check for interrupts
+                let if_reg = &mut mem_map.io_registers.get_if_register();
+                let ie_ref = &mem_map.io().ie_register;
+                if if_reg.is_requested(InterruptType::Timer) {
+                    if_reg.clear_request(InterruptType::Timer);
+                    if ie_ref.is_timer_handler_enabled() {
+                        self.interrupt_master_enable = InterruptMasterEnableStatus::Disabled;
+                        self.push_to_stack(mem_map, 0x0048);
+                        self.register_set.set_w(WordRegister::PC, 0x0048);
+                    }
+                }
             }
             InterruptMasterEnableStatus::Enabling => {
                 self.interrupt_master_enable = InterruptMasterEnableStatus::Enabled

@@ -12,7 +12,7 @@
 // FFFF	FFFF	Interrupt Enable register (IE)
 
 use crate::{
-    io::{ie_register::IERegister, io_registers::IORegisters},
+    io::io_registers::IORegisters,
     memory::generic_memory::{RWMemory, ReadableMemory, WritableMemory},
     ppu::object_attribute_memory::ObjectAttributeMemory,
 };
@@ -25,7 +25,6 @@ pub struct MemMap {
     pub io_registers: IORegisters,
     pub object_attribute_memory: ObjectAttributeMemory,
     pub hram: RWMemory,
-    pub ie_register: IERegister,
 }
 
 impl MemMap {
@@ -36,7 +35,6 @@ impl MemMap {
         io_registers.init_defaults();
         let object_attribute_memory = ObjectAttributeMemory::new();
         let hram = RWMemory::create(0x7f, 0xff80);
-        let ie_register = IERegister::new();
 
         MemMap {
             cartridge,
@@ -45,8 +43,11 @@ impl MemMap {
             io_registers,
             object_attribute_memory,
             hram,
-            ie_register,
         }
+    }
+
+    pub fn io(&self) -> &IORegisters {
+        &self.io_registers
     }
 
     pub fn read_byte(&self, address: u16) -> u8 {
@@ -60,7 +61,7 @@ impl MemMap {
             0xFEA0..=0xFEFF => 0x00, // todo!("Read from Not Usable"),
             0xFF00..=0xFF7F => self.io_registers.read_byte(address),
             0xFF80..=0xFFFE => self.hram.read_byte(address),
-            0xFFFF => self.ie_register.0,
+            0xFFFF => self.io_registers.read_byte(address),
         }
     }
 
@@ -107,7 +108,7 @@ impl MemMap {
             0xFF00..=0xFF7F => self.io_registers.write_byte(address, value),
             0xFF80..=0xFFFE => self.hram.write_byte(address, value),
             0xFFFF => {
-                self.ie_register.0 = value;
+                self.io_registers.ie_register.0 = value;
             }
             _ => todo!("Write to memory map 0x{:04x}", address),
         }

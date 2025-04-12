@@ -1,5 +1,5 @@
 use crate::{
-    cpu::cpu::InterruptMasterEnableStatus, device::mem_map::MemMap, io::if_register::IFRegister,
+    cpu::InterruptMasterEnableStatus, device::mem_map::MemMap, io::if_register::IFRegister,
 };
 
 use super::{

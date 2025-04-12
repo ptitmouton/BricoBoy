@@ -1,9 +1,17 @@
-use crate::cpu::cpu;
+use clap::ValueEnum;
+
+use crate::cpu::CPUState;
 
 pub enum Log {
     Msg(String),
     SerialOutput(char),
-    CPUState(cpu::CPUState),
+    CPUState(CPUState),
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum LogOutput {
+    SerialData,
+    CPUState,
 }
 
 pub enum LogLevel {
@@ -14,6 +22,10 @@ pub enum LogLevel {
 
 pub(crate) trait Logger {
     fn log(&mut self, level: LogLevel, log_type: Log);
+
+    fn set_supported_outputs(&mut self, _outputs: Vec<LogOutput>) {
+        // Default implementation does nothing
+    }
 
     fn info(&mut self, log: Log) {
         self.log(LogLevel::Info, log)

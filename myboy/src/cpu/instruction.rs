@@ -1,8 +1,7 @@
 use std::{cmp::max, fmt::Display};
 
 use super::{
-    addressing_mode::{AddressingMode, ImplicitOpCodeSize},
-    condition::Condition,
+    Condition, {AddressingMode, ImplicitOpCodeSize},
 };
 use crate::{
     cpu::register_set::{ByteRegister, WordRegister},
