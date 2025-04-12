@@ -312,12 +312,15 @@ impl CPU {
             InstructionType::Cp => {
                 let source = self.get_source_byte(mem_map, instruction);
                 let target = self.get_target_byte(mem_map, instruction);
+
                 let result = target.wrapping_sub(source);
+
                 self.register_set.set_flag(Flag::Zero, source == target);
                 self.register_set.set_flag(Flag::Subtract, true);
                 self.register_set
                     .set_flag(Flag::HalfCarry, (target & 0xf) < (source & 0xf));
                 self.register_set.set_flag(Flag::Carry, result > target);
+
                 self.register_set.set_w(
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
@@ -638,7 +641,7 @@ impl CPU {
             InstructionType::RotateLeft => {
                 let target = self.get_target_byte(mem_map, instruction);
                 let carry = self.register_set.get_flag(Flag::Carry) as u8;
-                let result = (target << 1) | (carry >> 7);
+                let result = (target << 1) | carry;
                 self.write_target_byte(mem_map, instruction, result);
                 // only cb-prefixed instructions set the zero-flag,
                 // otherwise it is reset (yeah wonder who decided this ... 🤷‍♂️)
@@ -649,7 +652,8 @@ impl CPU {
                 }
                 self.register_set.set_flag(Flag::Subtract, false);
                 self.register_set.set_flag(Flag::HalfCarry, false);
-                self.register_set.set_flag(Flag::Carry, target & 0x1 == 1);
+                self.register_set
+                    .set_flag(Flag::Carry, target & 0b1000_0000 != 0);
                 self.register_set.set_w(
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
@@ -669,7 +673,8 @@ impl CPU {
                 }
                 self.register_set.set_flag(Flag::Subtract, false);
                 self.register_set.set_flag(Flag::HalfCarry, false);
-                self.register_set.set_flag(Flag::Carry, target & 0x1 == 1);
+                self.register_set
+                    .set_flag(Flag::Carry, target & 0b1000_0000 != 0);
                 self.register_set.set_w(
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
@@ -701,7 +706,15 @@ impl CPU {
                 let target = self.get_target_byte(mem_map, instruction);
                 let result = (target >> 1) | (target << 7);
                 self.write_target_byte(mem_map, instruction, result);
-                self.register_set.set_flag(Flag::Zero, false);
+
+                // only cb-prefixed instructions set the zero-flag,
+                // otherwise it is reset (yeah wonder who decided this ... 🤷‍♂️)
+                if instruction.size() == 1 {
+                    self.register_set.set_flag(Flag::Zero, false);
+                } else {
+                    self.register_set.set_flag(Flag::Zero, result == 0);
+                }
+
                 self.register_set.set_flag(Flag::Subtract, false);
                 self.register_set.set_flag(Flag::HalfCarry, false);
                 self.register_set.set_flag(Flag::Carry, target & 0x1 == 1);
@@ -725,6 +738,48 @@ impl CPU {
                 );
                 return 2;
             }
+            InstructionType::ShiftLeftArithmetically => {
+                let target = self.get_target_byte(mem_map, instruction);
+
+                let result = (target as u8) << 1;
+
+                self.write_target_byte(mem_map, instruction, result);
+                self.register_set.set_flag(Flag::Zero, result == 0);
+                self.register_set.set_flag(Flag::Subtract, false);
+                self.register_set.set_flag(Flag::HalfCarry, false);
+                self.register_set
+                    .set_flag(Flag::Carry, (target & 0b1000_0000) != 0x0); // initial bit 7 is now carry
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
+                );
+
+                if matches!(instruction.target, Some(AddressingMode::RegisterPointer(_))) {
+                    return 4;
+                }
+                return 2;
+            }
+            InstructionType::ShiftRightArithmetically => {
+                let target = self.get_target_byte(mem_map, instruction);
+
+                let result = (target as u8) >> 1 | (target & 0b1000_0000);
+
+                self.write_target_byte(mem_map, instruction, result);
+                self.register_set.set_flag(Flag::Zero, result == 0);
+                self.register_set.set_flag(Flag::Subtract, false);
+                self.register_set.set_flag(Flag::HalfCarry, false);
+                self.register_set
+                    .set_flag(Flag::Carry, (target & 0x1) == 0x1); // initial bit 7 is now carry
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
+                );
+
+                if matches!(instruction.target, Some(AddressingMode::RegisterPointer(_))) {
+                    return 4;
+                }
+                return 2;
+            }
             InstructionType::ShiftRightLogically => {
                 let target = self.get_target_byte(mem_map, instruction);
                 let result_u16 = (target as u16) >> 1;
@@ -741,14 +796,72 @@ impl CPU {
                 );
                 return 2;
             }
+            InstructionType::DecimalAdjustAccumulator => {
+                // this is from https://rgbds.gbdev.io/docs/v0.9.1/gbz80.7#BIT_u3,r8
+                // I have absolutely no idea what I'm doing here, and even less why
+                //
+                // .... (later) Ok, after some frustration about the carry I start to understand
+                // how this works (and am kind of baffled how naive a bcd implementation
+                // actually looks like) -- just wondering how fast I will forget it or
+                // if I will ever ever find myself in the embarrassing situation to
+                // knowing this in front of others ... (why this very uncalled for prose?
+                // I'm waiting for the tests to complete and I'd like to give my poetic
+                // self the freedom it deserves)
+                let subtract_flag = self.register_set.get_flag(Flag::Subtract);
+                let half_carry_flag = self.register_set.get_flag(Flag::HalfCarry);
+                let carry_flag = self.register_set.get_flag(Flag::Carry);
+
+                let mut will_cary = false;
+
+                let a_reg = *self.register_set.get_b(ByteRegister::A) as u16;
+                let result = if subtract_flag {
+                    let mut adjust: u16 = 0x00;
+                    if half_carry_flag {
+                        adjust += 0x06;
+                    }
+                    if carry_flag {
+                        adjust += 0x60;
+                    }
+                    a_reg.wrapping_sub(adjust)
+                } else {
+                    let mut adjust: u16 = 0x00;
+                    if half_carry_flag || (a_reg & 0x0f) > 0x09 {
+                        adjust += 0x06;
+                    }
+                    if carry_flag || a_reg > 0x99 {
+                        adjust += 0x60;
+                        will_cary = true;
+                    }
+
+                    a_reg + adjust
+                };
+
+                let result = result as u8;
+                self.register_set.set_b(ByteRegister::A, result);
+
+                self.register_set.set_flag(Flag::Zero, result == 0);
+                self.register_set.set_flag(Flag::HalfCarry, false);
+
+                if will_cary {
+                    self.register_set.set_flag(Flag::Carry, true);
+                }
+
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
+                );
+
+                if matches!(instruction.target, Some(AddressingMode::RegisterPointer(_))) {
+                    return 4;
+                }
+                return 2;
+            }
             InstructionType::ComplementAccumulator => {
                 let a_value = *self.register_set.get_b(ByteRegister::A);
                 let result = !a_value;
                 self.register_set.set_b(ByteRegister::A, result);
-                self.register_set.set_flag(Flag::Zero, result == 0);
                 self.register_set.set_flag(Flag::Subtract, true);
                 self.register_set.set_flag(Flag::HalfCarry, true);
-                self.register_set.set_flag(Flag::Carry, false);
                 self.register_set.set_w(
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
@@ -759,6 +872,17 @@ impl CPU {
                 self.register_set.set_flag(Flag::Subtract, false);
                 self.register_set.set_flag(Flag::HalfCarry, false);
                 self.register_set.set_flag(Flag::Carry, true);
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
+                );
+                return 1;
+            }
+            InstructionType::ComplementCarryFlag => {
+                self.register_set.set_flag(Flag::Subtract, false);
+                self.register_set.set_flag(Flag::HalfCarry, false);
+                self.register_set
+                    .set_flag(Flag::Carry, !self.register_set.get_flag(Flag::Carry));
                 self.register_set.set_w(
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
@@ -828,6 +952,51 @@ impl CPU {
                     instruction.address + (instruction.size() as u16),
                 );
                 return 1;
+            }
+            InstructionType::TestBit => {
+                let source = &instruction.source.unwrap();
+
+                let bitmask = AddressingMode::get_bitmask_for_bitposition(source);
+                let target = self.get_target_byte(mem_map, instruction);
+
+                let result = target & bitmask;
+
+                self.register_set.set_flag(Flag::Zero, result == 0);
+                self.register_set.set_flag(Flag::Subtract, false);
+                self.register_set.set_flag(Flag::HalfCarry, true);
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
+                );
+                return 2;
+            }
+            InstructionType::ResetBit => {
+                let target = self.get_target_byte(mem_map, instruction);
+
+                let bitmask =
+                    AddressingMode::get_bitmask_for_bitposition(&instruction.source.unwrap());
+
+                self.write_target_byte(mem_map, instruction, target & !bitmask);
+
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
+                );
+                return 2;
+            }
+            InstructionType::SetBit => {
+                let target = self.get_target_byte(mem_map, instruction);
+
+                let bitmask =
+                    AddressingMode::get_bitmask_for_bitposition(&instruction.source.unwrap());
+
+                self.write_target_byte(mem_map, instruction, target | bitmask);
+
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
+                );
+                return 2;
             }
             instruction_type => {
                 todo!(

@@ -767,22 +767,25 @@ impl InstructionType {
             match next_opcode & 0b1100_0000 {
                 0b0100_0000 => {
                     // BIT b3, r8
-                    return Result::Ok((
+
+                    let result = Result::Ok((
                         InstructionType::TestBit,
                         (
-                            AddressingMode::ByteRegister(ByteRegister::A).into(),
-                            AddressingMode::ImmediateByte.into(),
+                            AddressingMode::get_r8_adressing_mode(next_opcode).into(),
+                            AddressingMode::get_b3_adressing_mode(next_opcode).into(),
                         ),
                         None,
                     ));
+
+                    return result;
                 }
                 0b1000_0000 => {
                     // RES b3, r8
                     return Result::Ok((
                         InstructionType::ResetBit,
                         (
-                            AddressingMode::ByteRegister(ByteRegister::A).into(),
-                            AddressingMode::ImmediateByte.into(),
+                            AddressingMode::get_r8_adressing_mode(next_opcode).into(),
+                            AddressingMode::get_b3_adressing_mode(next_opcode).into(),
                         ),
                         None,
                     ));
@@ -792,8 +795,8 @@ impl InstructionType {
                     return Result::Ok((
                         InstructionType::SetBit,
                         (
-                            AddressingMode::ByteRegister(ByteRegister::A).into(),
-                            AddressingMode::ImmediateByte.into(),
+                            AddressingMode::get_r8_adressing_mode(next_opcode).into(),
+                            AddressingMode::get_b3_adressing_mode(next_opcode).into(),
                         ),
                         None,
                     ));

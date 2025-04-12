@@ -13,6 +13,7 @@ pub(crate) enum AddressingMode {
     ImmediateWord,
     ImmediatePointer,
     ImmediatePointerHigh,
+    BitPosition(u8),
 }
 
 pub(super) trait ImplicitOpCodeSize {
@@ -25,6 +26,24 @@ impl AddressingMode {
             0b110 => AddressingMode::RegisterPointer(WordRegister::HL),
             _ => AddressingMode::ByteRegister(AddressingMode::get_byte_register(opcode)),
         }
+    }
+
+    pub(crate) fn get_bitmask_for_bitposition(addressing_mode: &AddressingMode) -> u8 {
+        match addressing_mode {
+            AddressingMode::BitPosition(0) => 0b0000_0001,
+            AddressingMode::BitPosition(1) => 0b0000_0010,
+            AddressingMode::BitPosition(2) => 0b0000_0100,
+            AddressingMode::BitPosition(3) => 0b0000_1000,
+            AddressingMode::BitPosition(4) => 0b0001_0000,
+            AddressingMode::BitPosition(5) => 0b0010_0000,
+            AddressingMode::BitPosition(6) => 0b0100_0000,
+            AddressingMode::BitPosition(7) => 0b1000_0000,
+            _ => panic!("Invalid AddressingMode -- bitposition required."),
+        }
+    }
+
+    pub(crate) fn get_b3_adressing_mode(opcode: u8) -> AddressingMode {
+        AddressingMode::BitPosition((opcode & 0b0011_1000) >> 3)
     }
 
     pub(crate) fn get_byte_register(opcode: u8) -> ByteRegister {
@@ -98,6 +117,7 @@ impl Display for AddressingMode {
             AddressingMode::ImmediateWord => write!(f, "imm16"),
             AddressingMode::ImmediatePointer => write!(f, "(imm16)"),
             AddressingMode::ImmediatePointerHigh => write!(f, "0xff00 & (imm8)"),
+            AddressingMode::BitPosition(u8) => write!(f, "pos({})", u8),
         }
     }
 }

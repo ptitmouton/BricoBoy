@@ -256,9 +256,17 @@ impl AsmTextTable<'_> {
                 ui.label(AsmTextTable::register_ptrh_text(register))
                     .on_hover_text(AsmTextTable::byte_text(memory.read_byte(pointer_address)));
             }
+            AddressingMode::BitPosition(u8) => {
+                ui.label(AsmTextTable::pos_text(*u8));
+            }
         }
     }
 
+    fn pos_text(pos: u8) -> RichText {
+        RichText::new(format!("{}", pos))
+            .color(Color32::from_rgb(65, 65, 65))
+            .monospace()
+    }
     fn byte_text(byte: u8) -> RichText {
         RichText::new(format!("${:02x}", byte))
             .color(Color32::from_rgb(255, 25, 0))
