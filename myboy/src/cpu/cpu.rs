@@ -34,8 +34,6 @@ pub struct CPU {
 #[derive(Clone, Copy)]
 pub struct CPUState {
     pub register_set: RegisterSet,
-    pub interrupt_master_enable: InterruptMasterEnableStatus,
-    pub current_instruction: Instruction,
     pub current_instruction_bytes: [u8; 4],
 }
 
@@ -45,11 +43,11 @@ impl Debug for CPUState {
         let regset = &self.register_set;
 
         // let format1: &str = "A: {:02X} F: {:02X} B: {:02X} C: {:02X} D: {:02X} E: {:02X} H: {:02X} L: {:02X} SP: {:04X} PC: 00:{:04X} ({:02X} {:02X} {:02X} {:02X})";
-        // let format2: &str = "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:00:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}";
+        // let format2: &str = "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}";
 
         write!(
             f,
-            "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:00:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
+            "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
             regset.get_b(ByteRegister::A),
             regset.get_b(ByteRegister::F),
             regset.get_b(ByteRegister::B),
@@ -72,10 +70,8 @@ impl From<&Device> for CPUState {
     fn from(device: &Device) -> Self {
         let cpu = &device.cpu;
         let register_set = cpu.register_set.clone();
-        let interrupt_master_enable = cpu.interrupt_master_enable;
 
         let pc = (*cpu.register_set.pc()).clone();
-        let current_instruction = cpu.current_instruction.unwrap_or_default();
         let current_bytes = device.mem_map.read_word(pc).to_le_bytes();
         let next_bytes = device.mem_map.read_word(pc + 2).to_le_bytes();
 
@@ -88,8 +84,6 @@ impl From<&Device> for CPUState {
 
         CPUState {
             register_set,
-            interrupt_master_enable,
-            current_instruction,
             current_instruction_bytes,
         }
     }
@@ -139,8 +133,9 @@ impl CPU {
 
     pub(super) fn push_to_stack(&mut self, mem_map: &mut MemMap, value: u16) {
         let sp = *self.register_set.sp();
-        mem_map.write_byte(sp - 1, (value >> 8) as u8);
-        mem_map.write_byte(sp - 2, (value & 0xff) as u8);
+        let byte_values = value.to_le_bytes();
+        mem_map.write_byte(sp - 1, byte_values[1]);
+        mem_map.write_byte(sp - 2, byte_values[0]);
         self.register_set.set_sp(sp - 2);
     }
 

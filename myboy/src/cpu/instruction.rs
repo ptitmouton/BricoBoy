@@ -31,7 +31,8 @@ pub(crate) enum InstructionType {
     DecWord,
     AddByte,
     AddWord,
-    AddSPRelative,
+    AddSPAdjusted,
+    LoadHLAdjusted,
     AddWithCarry,
     Sub,
     SubWithCarry,
@@ -58,7 +59,7 @@ pub(crate) enum InstructionType {
     Return,
     ReturnInterrupt,
     Call,
-    Restart,
+    Reset,
     Stop,
     Halt,
     DisableInterrupts,
@@ -621,9 +622,9 @@ impl InstructionType {
 
         if (opcode & 0b1100_0111) == 0b1100_0111 {
             // RST tgt3
-            let target = u16::from_le_bytes([0x00, (opcode & 0b0011_1000)]);
+            let target = u16::from_le_bytes([(opcode & 0b0011_1000), 0x00]);
             return Result::Ok((
-                InstructionType::Restart,
+                InstructionType::Reset,
                 (AddressingMode::Target(target).into(), None),
                 None,
             ));
@@ -877,7 +878,7 @@ impl InstructionType {
             0b1110_1000 => {
                 // ADD sp, e
                 return Result::Ok((
-                    InstructionType::AddSPRelative,
+                    InstructionType::AddSPAdjusted,
                     (
                         AddressingMode::WordRegister(WordRegister::SP).into(),
                         AddressingMode::ImmediateByte.into(),
@@ -887,9 +888,8 @@ impl InstructionType {
             }
             0b1111_1000 => {
                 // LD HL, sp+imm8
-                // TODO: Find a solution, this is not correct
                 return Result::Ok((
-                    InstructionType::AddWord,
+                    InstructionType::LoadHLAdjusted,
                     (
                         AddressingMode::WordRegister(WordRegister::HL).into(),
                         AddressingMode::ImmediateByte.into(),
@@ -934,7 +934,8 @@ impl Display for InstructionType {
             InstructionType::DecWord => write!(f, "DEC"),
             InstructionType::AddByte => write!(f, "ADD"),
             InstructionType::AddWord => write!(f, "ADD"),
-            InstructionType::AddSPRelative => write!(f, "ADD SP+e"),
+            InstructionType::AddSPAdjusted => write!(f, "ADD SP+e"),
+            InstructionType::LoadHLAdjusted => write!(f, "LD HL, SP+e"),
             InstructionType::AddWithCarry => write!(f, "ADC"),
             InstructionType::Sub => write!(f, "SUB"),
             InstructionType::SubWithCarry => write!(f, "SBC"),
@@ -961,7 +962,7 @@ impl Display for InstructionType {
             InstructionType::Return => write!(f, "RET"),
             InstructionType::ReturnInterrupt => write!(f, "RETI"),
             InstructionType::Call => write!(f, "CALL"),
-            InstructionType::Restart => write!(f, "RST"),
+            InstructionType::Reset => write!(f, "RST"),
             InstructionType::Stop => write!(f, "STOP"),
             InstructionType::Halt => write!(f, "HALT"),
             InstructionType::DisableInterrupts => write!(f, "DI"),

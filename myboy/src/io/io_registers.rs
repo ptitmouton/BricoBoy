@@ -23,9 +23,6 @@ impl IORegisters {
         LCDCRegister(self.read_byte(0xff40))
     }
 
-    pub fn set_lcdl_register(&mut self, value: LCDCRegister) {
-        self.write_byte(0xff40, value.0);
-    }
 
     pub fn get_if_register(&self) -> IFRegister {
         IFRegister(self.read_byte(0xff0f))
@@ -44,10 +41,6 @@ impl IORegisters {
 
     pub fn get_lcdstat(&self) -> u8 {
         self.read_byte(0xff41)
-    }
-
-    pub fn set_lcdstat(&mut self, lcdstat: u8) {
-        self.write_byte(0xff41, lcdstat);
     }
 
     #[inline]

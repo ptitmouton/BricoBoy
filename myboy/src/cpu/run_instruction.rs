@@ -30,7 +30,7 @@ impl CPU {
                 content
             }
             Some(AddressingMode::RegisterPointerHigh(register)) => {
-                let address = (0xff00 as u16) & (*self.register_set.get_b(register)) as u16;
+                let address = (0xff00 as u16) + (*self.register_set.get_b(register)) as u16;
                 mem_map.read_byte(address)
             }
             _ => panic!("No source provided for instruction"),
@@ -407,21 +407,42 @@ impl CPU {
                 );
                 return 2;
             }
-            InstructionType::AddSPRelative => {
-                let e = self.get_source_byte(mem_map, instruction) as i8;
-                let sp = self.get_target_word(mem_map, instruction);
+            InstructionType::AddSPAdjusted => {
+                let e = self.get_source_byte(mem_map, instruction);
+                let signed_e = e as i8;
 
-                let result = sp.wrapping_add_signed(e as i16);
+                let sp = self.get_target_word(mem_map, instruction);
+                let result = sp.wrapping_add_signed(signed_e.into());
+
                 self.write_target_word(mem_map, instruction, result);
                 self.register_set.set_flag(Flag::Zero, false);
                 self.register_set.set_flag(Flag::Subtract, false);
                 // ADD SP, e: H from bit 3, C from bit 7 (flags from low byte op)
-                self.register_set.set_flag(
-                    Flag::HalfCarry,
-                    (sp & 0x0f).wrapping_add_signed(e as i16) > 0x0f,
-                );
                 self.register_set
-                    .set_flag(Flag::Carry, sp.overflowing_add_signed(e as i16).1);
+                    .set_flag(Flag::HalfCarry, (((sp as u8) & 0x0f) + (e & 0x0f)) > 0x0f);
+                self.register_set
+                    .set_flag(Flag::Carry, (sp as u8).overflowing_add(e).1);
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
+                );
+                return 2;
+            }
+            InstructionType::LoadHLAdjusted => {
+                let e = self.get_source_byte(mem_map, instruction);
+                let signed_e = e as i8;
+
+                let sp = self.register_set.get_w(WordRegister::SP);
+                let result = sp.wrapping_add_signed(signed_e.into());
+
+                self.write_target_word(mem_map, instruction, result);
+                self.register_set.set_flag(Flag::Zero, false);
+                self.register_set.set_flag(Flag::Subtract, false);
+                // ADD SP, e: H from bit 3, C from bit 7 (flags from low byte op)
+                self.register_set
+                    .set_flag(Flag::HalfCarry, (((sp as u8) & 0x0f) + (e & 0x0f)) > 0x0f);
+                self.register_set
+                    .set_flag(Flag::Carry, (sp as u8).overflowing_add(e).1);
                 self.register_set.set_w(
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
@@ -453,15 +474,27 @@ impl CPU {
             }
             InstructionType::SubWithCarry => {
                 let source = self.get_source_byte(mem_map, instruction);
-                let target = self.get_target_byte(mem_map, instruction);
                 let carry = self.register_set.get_flag(Flag::Carry) as u8;
-                let result = source.wrapping_sub(target).wrapping_sub(carry);
+
+                let target = self.get_target_byte(mem_map, instruction);
+
+                let result_u16 = (target as u16)
+                    .wrapping_sub(source as u16)
+                    .wrapping_sub(carry as u16);
+                let result = result_u16 as u8;
+
                 self.write_target_byte(mem_map, instruction, result);
                 self.register_set.set_flag(Flag::Zero, result == 0);
                 self.register_set.set_flag(Flag::Subtract, true);
                 self.register_set
-                    .set_flag(Flag::HalfCarry, (result & 0xf) > (target & 0xf));
-                self.register_set.set_flag(Flag::Carry, source < target);
+                    .set_flag(Flag::Carry, result_u16 > target as u16);
+                self.register_set.set_flag(
+                    Flag::HalfCarry,
+                    ((target & 0xf)
+                        .wrapping_sub(source & 0xf)
+                        .wrapping_sub(carry))
+                        > 0xf,
+                );
                 self.register_set.set_w(
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
@@ -534,9 +567,17 @@ impl CPU {
                 return 2;
             }
             InstructionType::Jump => {
-                let target = self.get_target_word(mem_map, instruction);
-                self.register_set.set_w(WordRegister::PC, target);
-                return 4;
+                let condition_met = self.condition_met(instruction);
+                if condition_met {
+                    let target = self.get_target_word(mem_map, instruction);
+                    self.register_set.set_w(WordRegister::PC, target);
+                    return 4;
+                }
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + instruction.size() as u16,
+                );
+                return 3;
             }
             InstructionType::JumpRelative => {
                 let condition_met = self.condition_met(instruction);
@@ -572,9 +613,9 @@ impl CPU {
                 );
                 return 3;
             }
-            InstructionType::Restart => {
+            InstructionType::Reset => {
                 let address = self.get_target_word(mem_map, instruction);
-                self.push_to_stack(mem_map, instruction.address + (instruction.size() as u16));
+                self.push_to_stack(mem_map, instruction.address + 1);
                 self.register_set.set_w(WordRegister::PC, address);
                 return 4;
             }
@@ -743,6 +784,19 @@ impl CPU {
                     instruction.address + (instruction.size() as u16),
                 );
                 return 2;
+            }
+            InstructionType::ReturnInterrupt => {
+                self.interrupt_master_enable = InterruptMasterEnableStatus::Enabled;
+                // push current PC to stack
+                let mut stack_pointer = *self.register_set.sp();
+
+                let return_address = mem_map.read_word(stack_pointer);
+
+                stack_pointer += 2;
+                self.register_set.set_w(WordRegister::SP, stack_pointer);
+
+                self.register_set.set_w(WordRegister::PC, return_address);
+                return 4;
             }
             InstructionType::Call => {
                 let address = self.get_target_word(mem_map, instruction);

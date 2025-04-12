@@ -66,8 +66,8 @@ impl Default for RegisterSet {
             h: 0x01,
             l: 0x4d,
 
-            pc: 0x0100,
             sp: 0xfffe,
+            pc: 0x0100,
         }
     }
 }
@@ -108,7 +108,7 @@ impl RegisterSet {
                 &self.a
             }
             ByteRegister::F => {
-                self.f = value;
+                self.f = value & 0xf0; // Clear the lower nibble
                 &self.f
             }
 
@@ -145,7 +145,7 @@ impl RegisterSet {
             WordRegister::AF => {
                 let byte_values = value.to_le_bytes();
                 self.a = byte_values[1];
-                self.f = byte_values[0];
+                self.f = byte_values[0] & 0xf0; // Clear the lower nibble
             }
             WordRegister::BC => {
                 let byte_values = value.to_le_bytes();
