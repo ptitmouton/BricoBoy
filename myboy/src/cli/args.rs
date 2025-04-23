@@ -15,19 +15,24 @@ pub struct Cli {
     pub command: Option<Commands>,
 
     #[arg(long)]
-    pub headless: bool,
-
-    #[arg(long)]
     pub disable_logtypes: Option<Vec<LogOutput>>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
-    Device {
-        #[arg(long, value_parser=maybe_hex::<u16>)]
+    Play {
+        #[arg(long)]
+        headless: bool,
+
+        #[arg(action = clap::ArgAction::Append)]
+        file: PathBuf,
+    },
+
+    Debug {
+        #[arg(short, long, value_parser = maybe_hex::<u16>)]
         breakpoint: Option<u16>,
 
-        #[arg(short, long)]
-        file: Option<PathBuf>,
+        #[arg(action = clap::ArgAction::Append)]
+        file: PathBuf,
     },
 }

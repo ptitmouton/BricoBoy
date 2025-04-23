@@ -6,10 +6,7 @@ use std::{thread, time::Instant};
 
 use mygbcartridge::cartridge::Cartridge;
 
-use crate::{
-    PPU,
-    cpu::{CPU, CPUState},
-};
+use crate::{PPU, cpu::CPU};
 
 use super::mem_map::MemMap;
 
@@ -17,6 +14,7 @@ pub(crate) struct Device {
     pub ppu: PPU,
     pub cpu: CPU,
     pub mem_map: MemMap,
+    pub screen: Box<[u8]>,
 
     pub speed_multiplier: f64,
 
@@ -36,6 +34,9 @@ impl Device {
         let mem_map = MemMap::new(cartridge.clone());
         let cpu = CPU::new();
         let ppu = PPU::new();
+
+        let screen = Box::new([0 as u8; 160 * 144 * 4]);
+
         let running = false;
         let serial_buffer = Vec::new();
         let logger = Box::new(ConsoleLogger::default());
@@ -43,6 +44,9 @@ impl Device {
         Device {
             cpu,
             ppu,
+
+            screen,
+
             cartridge,
             speed_multiplier: 1.0,
             mem_map,
@@ -119,7 +123,7 @@ impl Device {
                 let raw_device = raw_device_pointer as *mut Device;
                 let device = &mut *raw_device;
                 if self.ppu_enabled() {
-                    device.ppu.cycle(&mut device.mem_map);
+                    device.ppu.cycle(&mut device.mem_map, self.screen.as_mut());
                 }
             }
             let cycle_duration = cycle_start.elapsed();
@@ -128,6 +132,12 @@ impl Device {
                 let sleep_dur = cycle_rest.div_f64(speed_multiplier);
                 thread::sleep(sleep_dur);
             }
+        }
+    }
+
+    pub fn draw_screen(&mut self, pixels: &mut [u8]) {
+        for i in 0..(160 * 144 * 4) {
+            pixels[i] = self.screen[i];
         }
     }
 

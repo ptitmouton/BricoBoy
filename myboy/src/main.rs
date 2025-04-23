@@ -5,24 +5,21 @@ pub(crate) mod io;
 mod logging;
 mod memory;
 mod ppu;
+mod screen;
 mod ui;
 
 use clap::Parser;
 use cli::args::{Cli, Commands};
 use device::device::Device;
-use logging::log::{ConsoleLogger, InMemoryLogger, Logger};
+use logging::log::{ConsoleLogger, Logger};
 use mygbcartridge::cartridge::Cartridge;
 use ppu::ppu::PPU;
+use screen::open_gamescreen;
 use ui::{app::AppTemplate, emulator_view::run_emulator};
 
 fn create_default_logger(cli: &Cli) -> Box<dyn Logger> {
     let disabled_logtypes = &cli.disable_logtypes;
-    let headless = cli.headless;
-    let mut logger: Box<dyn Logger> = if headless {
-        Box::new(ConsoleLogger::default())
-    } else {
-        Box::new(InMemoryLogger::default())
-    };
+    let mut logger = Box::new(ConsoleLogger::default());
 
     if let Some(disabled_logtypes) = disabled_logtypes {
         logger.set_disabled_outputs(disabled_logtypes.clone());
@@ -31,28 +28,31 @@ fn create_default_logger(cli: &Cli) -> Box<dyn Logger> {
     logger
 }
 
-fn create_default_device(cli: &Cli) -> Option<Device> {
-    match &cli.command {
-        Some(Commands::Device { breakpoint, file }) => {
-            if let Some(path) = file {
-                let logger = create_default_logger(cli);
-                let cartridge = Cartridge::new(path);
-                let mut dev = Device::new(cartridge);
-                dev.logger = logger;
-                if let Some(bp) = breakpoint {
-                    dev.breakpoint = Some(*bp);
-                }
+fn create_default_device(cli: &Cli) -> Result<Device, String> {
+    let command = cli.command.as_ref().ok_or_else(|| "No command provided")?;
+    match command {
+        Commands::Play { file, .. } => {
+            let cartridge = Cartridge::new(file.as_path());
+            let device = Device::new(cartridge);
 
-                return Some(dev);
+            Ok(device)
+        }
+        Commands::Debug {
+            file, breakpoint, ..
+        } => {
+            let cartridge = Cartridge::new(file.as_path());
+            let mut device = Device::new(cartridge);
+
+            if let Some(_) = breakpoint {
+                device.breakpoint = *breakpoint;
             }
 
-            return None;
+            Ok(device)
         }
-        None => None,
     }
 }
 
-fn main() {
+fn main() -> Result<(), String> {
     let cli = Cli::parse();
 
     let mut logger = create_default_logger(&cli);
@@ -61,30 +61,33 @@ fn main() {
         "Starting MyBoy Gameboy Emulator".to_string(),
     ));
 
-    let command = cli.command.clone().unwrap_or(Commands::Device {
-        breakpoint: None,
-        file: None,
-    });
+    let command = cli.command.clone().unwrap();
 
     match command {
-        Commands::Device { .. } => {
-            logger.info(logging::log::Log::Msg("Creating device".to_string()));
-            let device = create_default_device(&cli);
+        Commands::Play { headless, .. } => {
+            let device = create_default_device(&cli)?;
 
-            if cli.headless {
-                if device.is_none() {
-                    logger.error(logging::log::Log::Msg(
-                        "No ROM file provided. Exiting.".to_string(),
-                    ));
-                    return;
-                }
+            if headless {
                 logger.info(logging::log::Log::Msg(
                     "Running device in headless mode".to_string(),
                 ));
-                _ = run_device_headless(device.unwrap());
+                let _ = run_device_headless(device)
+                    .map_err(|e| format!("Failed to run device in headless mode: {}", e))?;
+
+                Ok(())
             } else {
-                _ = open_device_view(device);
+                let _ = open_gamescreen(device)
+                    .map_err(|e| format!("Failed to open game screen: {}", e))?;
+
+                Ok(())
             }
+        }
+        Commands::Debug { .. } => {
+            let device = create_default_device(&cli)?;
+
+            open_native_app(device).map_err(|e| format!("Failed to open native app: {}", e))?;
+
+            Ok(())
         }
     }
 }
@@ -97,7 +100,7 @@ fn run_device_headless(device: Device) -> Result<(), String> {
         .map_err(|e| format!("Failed to run emulator in headless mode: {:?}", e))
 }
 
-fn open_device_view(device: Option<Device>) -> eframe::Result {
+fn open_native_app(mut device: Device) -> Result<(), String> {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([400.0, 300.0])
@@ -110,9 +113,13 @@ fn open_device_view(device: Option<Device>) -> eframe::Result {
     //         .expect("Failed to load icon"),
     // ),
 
+    let _ = run_emulator(&mut device)
+        .map_err(|e| format!("Failed to run emulator in debug mode: {}", e))?;
+
     eframe::run_native(
         "MyBoy Gameboy Emulator",
         native_options,
         Box::new(|_cc| Ok(Box::new(AppTemplate::new(device)))),
     )
+    .map_err(|e| format!("Failed to run native app: {}", e))
 }

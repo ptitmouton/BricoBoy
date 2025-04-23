@@ -58,12 +58,11 @@ impl IORegisters {
     }
 
     pub fn get_lcd_ly(&self) -> u8 {
-        0x90
-        // self.read_byte(0xff44)
+        self.data[0x44]
     }
 
     pub fn set_lcd_ly(&mut self, line: u8) {
-        self.write_byte(0xff44, line);
+        self.data[0x44] = line;
     }
 
     pub fn get_lcdstat(&self) -> u8 {
@@ -77,11 +76,6 @@ impl IORegisters {
             0xff04 | 0xff05 | 0xff06 | 0xff07 => return self.timers.read_byte(address),
             0xff0f => return self.if_register.read_byte(),
             0xffff => return self.ie_register.read_byte(),
-            0xff44 => {
-                // LY register is read-only
-                // This is just for now ...
-                return 0x90;
-            }
             _ => {
                 let translated_address: usize = (address - self.offset() as u16).into();
                 self.data[translated_address]

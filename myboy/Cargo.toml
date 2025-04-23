@@ -9,7 +9,7 @@ egui = "0.31.1"
 eframe = { version = "0.31", default-features = false, features = [
     "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
-    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "wgpu",          # Use the glow rendering backend. Alternative: "wgpu".
     # "persistence",   # Enable restoring app state when restarting the app.
     "wayland",       # To support Linux (and CI)
 ] }
@@ -19,3 +19,5 @@ full = "0.3.0"
 rfd = { version = "0.15.3", features = ["gtk3"] }
 clap = { version = "4.5.35", features = ["derive"] }
 clap-num = "1.2.0"
+pixels = "0.15.0"
+tao = "0.33.0"

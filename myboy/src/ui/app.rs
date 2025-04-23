@@ -1,17 +1,15 @@
 use egui::CentralPanel;
-use mygbcartridge::cartridge::Cartridge;
-use rfd::FileDialog;
 
 use crate::Device;
 
 use super::emulator_view::EmulatorView;
 
 pub struct AppTemplate {
-    device: Option<Device>,
+    device: Device,
 }
 
 impl AppTemplate {
-    pub fn new(device: Option<Device>) -> AppTemplate {
+    pub fn new(device: Device) -> AppTemplate {
         AppTemplate { device }
     }
 }
@@ -38,29 +36,7 @@ impl eframe::App for AppTemplate {
                 egui::widgets::global_theme_preference_buttons(ui);
             });
 
-            if self.device.is_some() {
-                ui.add(EmulatorView::new(self.device.as_mut().unwrap()))
-            } else {
-                ui.vertical_centered(|ui| {
-                    ui.label("No ROM loaded");
-                    ui.label("Please select a ROM file.");
-
-                    ui.horizontal(|ui| {
-                        if ui.button("Open").clicked() {
-                            if let Some(file) = FileDialog::new()
-                                .set_title("Select a Gameboy file")
-                                .add_filter("gb files", &["gb"])
-                                .pick_file()
-                            {
-                                let cartridge = Cartridge::new(file.as_path());
-                                let device = Device::new(cartridge);
-                                self.device = Some(device);
-                            }
-                        }
-                    });
-                })
-                .response
-            }
+            ui.add(EmulatorView::new(&mut self.device))
         });
     }
 }
