@@ -1,6 +1,4 @@
-use crate::{
-    cpu::InterruptMasterEnableStatus, device::mem_map::MemMap, io::if_register::IFRegister,
-};
+use crate::{cpu::InterruptMasterEnableStatus, device::mem_map::MemMap};
 
 use super::{
     addressing_mode::AddressingMode,
@@ -241,7 +239,7 @@ impl CPU {
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
                 );
-                return 1;
+                return 2;
             }
             InstructionType::LoadWord => {
                 let source = self.get_source_word(mem_map, instruction);
@@ -330,9 +328,9 @@ impl CPU {
             InstructionType::And => {
                 let source = self.get_source_byte(mem_map, instruction);
                 let target = self.get_target_byte(mem_map, instruction);
-                self.write_target_byte(mem_map, instruction, source & target);
-                self.register_set
-                    .set_flag(Flag::Zero, (source & target) == 0);
+                let result = source & target;
+                self.write_target_byte(mem_map, instruction, result);
+                self.register_set.set_flag(Flag::Zero, result == 0);
                 self.register_set.set_flag(Flag::Subtract, false);
                 self.register_set.set_flag(Flag::HalfCarry, true);
                 self.register_set.set_flag(Flag::Carry, false);
@@ -590,13 +588,13 @@ impl CPU {
                         self.register_set.get_w(WordRegister::PC) + instruction.size() as u16;
                     let result = current.wrapping_add(target as i8 as u16);
                     self.register_set.set_w(WordRegister::PC, result);
-                    return 4;
+                    return 3;
                 }
                 self.register_set.set_w(
                     WordRegister::PC,
                     instruction.address + instruction.size() as u16,
                 );
-                return 3;
+                return 2;
             }
             InstructionType::Push => {
                 let source = self.get_target_word(mem_map, instruction);
@@ -946,7 +944,7 @@ impl CPU {
             }
             InstructionType::Stop => {
                 self.interrupt_master_enable = InterruptMasterEnableStatus::Disabled;
-                mem_map.io_registers.set_if_register(IFRegister(0x00));
+                mem_map.io_registers.set_if_register(0x00);
                 self.register_set.set_w(
                     WordRegister::PC,
                     instruction.address + (instruction.size() as u16),
@@ -998,11 +996,14 @@ impl CPU {
                 );
                 return 2;
             }
-            instruction_type => {
-                todo!(
-                    "The instruction type {} is not implemented",
-                    instruction_type
+            InstructionType::Halt => {
+                self.interrupt_master_enable = InterruptMasterEnableStatus::Disabled;
+                self.halted = true;
+                self.register_set.set_w(
+                    WordRegister::PC,
+                    instruction.address + (instruction.size() as u16),
                 );
+                return 1;
             }
         };
     }

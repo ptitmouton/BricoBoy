@@ -2,14 +2,16 @@ use clap::ValueEnum;
 
 use crate::cpu::CPUState;
 
+#[derive(Debug)]
 pub enum Log {
     Msg(String),
     SerialOutput(char),
     CPUState(CPUState),
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum LogOutput {
+    Message,
     SerialData,
     CPUState,
 }
@@ -23,7 +25,7 @@ pub enum LogLevel {
 pub(crate) trait Logger {
     fn log(&mut self, level: LogLevel, log_type: Log);
 
-    fn set_supported_outputs(&mut self, _outputs: Vec<LogOutput>) {
+    fn set_disabled_outputs(&mut self, _outputs: Vec<LogOutput>) {
         // Default implementation does nothing
     }
 
@@ -41,19 +43,30 @@ pub(crate) trait Logger {
 }
 
 #[derive(Default)]
-pub struct ConsoleLogger;
+pub struct ConsoleLogger {
+    disabled_outputs: Vec<LogOutput>,
+}
 
 impl Logger for ConsoleLogger {
+    fn set_disabled_outputs(&mut self, outputs: Vec<LogOutput>) {
+        self.disabled_outputs = outputs;
+    }
     fn log(&mut self, _level: LogLevel, log_type: Log) {
         match log_type {
             Log::Msg(msg) => {
-                println!("{}", msg);
+                if !self.disabled_outputs.contains(&LogOutput::Message) {
+                    println!("{}", msg);
+                }
             }
             Log::SerialOutput(c) => {
-                print!("{}", c);
+                if !self.disabled_outputs.contains(&LogOutput::SerialData) {
+                    print!("{}", c);
+                }
             }
             Log::CPUState(state) => {
-                println!("{:?}", state);
+                if !self.disabled_outputs.contains(&LogOutput::CPUState) {
+                    println!("{:?}", state);
+                }
             }
         }
     }

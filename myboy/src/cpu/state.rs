@@ -1,8 +1,9 @@
 use crate::Device;
 use crate::cpu::{ByteRegister, WordRegister};
+use crate::device::mem_map::MemMap;
 use std::fmt::Debug;
 
-use super::RegisterSet;
+use super::{CPU, RegisterSet};
 
 #[derive(Clone, Copy)]
 pub struct CPUState {
@@ -39,14 +40,13 @@ impl Debug for CPUState {
     }
 }
 
-impl From<&Device> for CPUState {
-    fn from(device: &Device) -> Self {
-        let cpu = &device.cpu;
+impl CPUState {
+    pub fn new(cpu: &CPU, mem_map: &MemMap) -> Self {
         let register_set = cpu.register_set.clone();
 
         let pc = (*cpu.register_set.pc()).clone();
-        let current_bytes = device.mem_map.read_word(pc).to_le_bytes();
-        let next_bytes = device.mem_map.read_word(pc + 2).to_le_bytes();
+        let current_bytes = mem_map.read_word(pc).to_le_bytes();
+        let next_bytes = mem_map.read_word(pc + 2).to_le_bytes();
 
         let current_instruction_bytes = [
             current_bytes[0],

@@ -1,8 +1,10 @@
 use super::{instruction::Instruction, register_set::RegisterSet};
 use crate::{
+    Logger,
     cpu::register_set::{Flag, WordRegister},
     device::mem_map::MemMap,
-    io::if_register::InterruptType,
+    io::if_register::{InterruptType, get_handler_address},
+    logging::log::Log,
 };
 use std::{
     fmt::{Debug, Display},
@@ -26,6 +28,8 @@ pub struct CPU {
     pub register_set: RegisterSet,
     pub current_instruction: Option<Instruction>,
     pub interrupt_master_enable: InterruptMasterEnableStatus,
+    pub halted: bool,
+    pub logger: Option<Box<dyn Logger>>,
 
     stopped: bool,
     cycle_counter: Wrapping<u8>,
@@ -43,34 +47,47 @@ impl CPU {
             occupied_cycles: 0,
             current_instruction: None,
             stopped: false,
+            halted: false,
+            logger: Option::None,
         }
     }
 
-    pub fn cycle(&mut self, mem_map: &mut MemMap) {
+    pub fn cycle(&mut self, mem_map: &mut MemMap, logger: &mut dyn Logger) {
         self.cycle_counter.add_assign(1);
-        if self.cycle_counter.0 == 0 {
-            // every 256 cycles
-            if !self.stopped {
-                mem_map.io_registers.inc_timer_div();
+        if !self.stopped {
+            if (self.cycle_counter.0 & 0b11) == 0x0 {
+                // every 4 cycles
+                self.m_cycle(mem_map, logger);
             }
         }
-        if (self.cycle_counter.0 & 0b11) == 0x0 {
-            // every 4 cycles
-            self.m_cycle(mem_map);
-        }
+        mem_map.io_registers.update_timers();
     }
 
-    pub fn m_cycle(&mut self, mem_map: &mut MemMap) {
+    pub fn m_cycle(&mut self, mem_map: &mut MemMap, logger: &mut dyn Logger) {
         // a CPU m-cycle (= 4 cycles)
         if self.occupied_cycles != 0 {
             self.occupied_cycles -= 1;
             return;
         }
+        let halted = self.halted;
+        if !halted {
+            logger.info(Log::CPUState(super::CPUState::new(self, mem_map)));
+        }
         self.check_interrupts(mem_map);
+        if halted && !self.halted {
+            logger.info(Log::CPUState(super::CPUState::new(self, mem_map)));
+        }
 
         let next_instruction_address = *self.register_set.pc();
         let instruction = Instruction::create(next_instruction_address, mem_map).unwrap();
-        self.occupied_cycles = self.run(mem_map, &instruction) - 1;
+        if !self.halted {
+            self.occupied_cycles = self.run(mem_map, &instruction) - 1;
+        }
+    }
+
+    #[inline]
+    pub fn is_halted(&self) -> bool {
+        self.halted
     }
 
     pub fn is_busy(&self) -> bool {
@@ -93,25 +110,43 @@ impl CPU {
     }
 
     fn check_interrupts(&mut self, mem_map: &mut MemMap) {
+        let if_reg = &mut mem_map.io_registers.if_register;
+        let ie_ref = &mem_map.io_registers.ie_register;
+
+        if if_reg.0 & ie_ref.0 & 0b0001_1111 != 0 {
+            self.halted = false;
+        }
+
         match self.interrupt_master_enable {
             InterruptMasterEnableStatus::Enabled => {
                 // Check for interrupts
-                let if_reg = &mut mem_map.io_registers.get_if_register();
-                let ie_ref = &mem_map.io().ie_register;
                 if if_reg.is_requested(InterruptType::Timer) {
                     if_reg.clear_request(InterruptType::Timer);
                     if ie_ref.is_timer_handler_enabled() {
-                        self.interrupt_master_enable = InterruptMasterEnableStatus::Disabled;
-                        self.push_to_stack(mem_map, 0x0048);
-                        self.register_set.set_w(WordRegister::PC, 0x0048);
+                        self.trigger_interrupt_handler(mem_map, InterruptType::Timer);
                     }
                 }
+
+                return;
             }
             InterruptMasterEnableStatus::Enabling => {
                 self.interrupt_master_enable = InterruptMasterEnableStatus::Enabled
             }
             InterruptMasterEnableStatus::Disabled => {}
         }
+    }
+
+    pub fn trigger_interrupt_handler(
+        &mut self,
+        mem_map: &mut MemMap,
+        interrupt_type: InterruptType,
+    ) {
+        self.interrupt_master_enable = InterruptMasterEnableStatus::Disabled;
+        self.push_to_stack(mem_map, *self.register_set.pc());
+        self.register_set
+            .set_w(WordRegister::PC, get_handler_address(interrupt_type));
+
+        self.occupied_cycles += 5;
     }
 }
 

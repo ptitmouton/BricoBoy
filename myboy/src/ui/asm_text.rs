@@ -1,20 +1,17 @@
 use std::fmt::Display;
 
-use egui::{
-    Align, Color32, FontSelection, Id, RichText, Style, TextStyle, Widget, text::LayoutJob,
-};
+use egui::{Align, Color32, FontSelection, RichText, Style, TextStyle, Widget, text::LayoutJob};
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 
 use crate::{
     Device,
-    cpu::{AddressingMode, Instruction, RegisterSet},
+    cpu::{addressing_mode::AddressingMode, instruction::Instruction, register_set::RegisterSet},
     device::mem_map::MemMap,
 };
 
 pub struct AsmTextTable<'a> {
-    pub device: &'a mut Device,
-
-    last_scrolled_rowid: Option<u16>,
+    device: &'a mut Device,
+    autoscroll: bool,
 }
 
 impl<'a> Widget for AsmTextTable<'a> {
@@ -38,20 +35,11 @@ impl<'a> Widget for AsmTextTable<'a> {
 }
 
 impl AsmTextTable<'_> {
-    pub fn new(device: &mut Device) -> AsmTextTable<'_> {
-        let last_scrolled_rowid = None;
-        AsmTextTable {
-            device,
-            last_scrolled_rowid,
-        }
+    pub fn new(device: &mut Device, autoscroll: bool) -> AsmTextTable<'_> {
+        AsmTextTable { device, autoscroll }
     }
 
     fn asm_text_table(&mut self, ui: &mut egui::Ui) {
-        let last_scrolled_rowid_id = Id::from("last_scrolled_rowid");
-        let mut last_scrolled_rowid = ui.data_mut(|d| {
-            *d.get_temp_mut_or_insert_with(last_scrolled_rowid_id, || self.last_scrolled_rowid)
-        });
-
         let body_text_size = TextStyle::Body.resolve(ui.style()).size;
 
         let current_address = *self.device.cpu.register_set.pc();
@@ -69,12 +57,10 @@ impl AsmTextTable<'_> {
             )
             .column(Column::auto().at_least(100.0).resizable(true));
 
-        if last_scrolled_rowid.is_none_or(|rowid| rowid != current_address) {
-            last_scrolled_rowid.replace(current_address);
-            self.last_scrolled_rowid.replace(current_address);
-            table = table.scroll_to_row(current_address as usize, None);
-        }
-        table = table.scroll_to_row(current_address as usize, None);
+        table = match self.autoscroll {
+            true => table.scroll_to_row(current_address as usize, None),
+            false => table,
+        };
 
         table
             .sense(egui::Sense::click())
@@ -169,10 +155,6 @@ impl AsmTextTable<'_> {
                     }
                 })
             });
-
-        ui.data_mut(|d| {
-            d.insert_temp(last_scrolled_rowid_id, self.last_scrolled_rowid);
-        });
     }
 
     fn render_source_or_target(

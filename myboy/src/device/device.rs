@@ -90,8 +90,6 @@ impl Device {
     }
 
     pub fn step(&mut self) {
-        self.log_cpu_state();
-
         loop {
             self.cycle();
             self.cycle();
@@ -115,7 +113,7 @@ impl Device {
             {
                 let raw_device = raw_device_pointer as *mut Device;
                 let device = &mut *raw_device;
-                device.cpu.cycle(&mut device.mem_map);
+                device.cpu.cycle(&mut device.mem_map, self.logger.as_mut());
             }
             {
                 let raw_device = raw_device_pointer as *mut Device;
@@ -141,12 +139,6 @@ impl Device {
 
             self.log_serial_output(data as char);
         }
-    }
-
-    fn log_cpu_state(&mut self) {
-        let cpu_state = CPUState::from(self as &Device);
-
-        self.logger.info(Log::CPUState(cpu_state))
     }
 
     fn log_serial_output(&mut self, data: char) {

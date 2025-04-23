@@ -24,6 +24,14 @@ impl IERegister {
     pub fn is_joypad_handler_enabled(&self) -> bool {
         self.0 & 0b0001_0000 != 0
     }
+
+    pub fn read_byte(&self) -> u8 {
+        self.0
+    }
+
+    pub fn write_byte(&mut self, value: u8) {
+        self.0 = value & 0x1f;
+    }
 }
 
 impl<'a> Into<&'a u8> for &'a IERegister {

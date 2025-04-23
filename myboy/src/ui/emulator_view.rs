@@ -2,9 +2,7 @@ use std::thread::{self, JoinHandle};
 
 use egui::{CentralPanel, CollapsingHeader, Response, RichText, SidePanel, Widget};
 
-use crate::{
-    cpu::InterruptMasterEnableStatus, device::device::Device, io::if_register::InterruptType,
-};
+use crate::{device::device::Device, io::if_register::InterruptType};
 
 use super::{
     asm_text::AsmTextTable, cpu_registers::CPURegisterView, io_registers::IORegisterView,
@@ -20,6 +18,8 @@ enum MainView {
 pub struct EmulatorView<'a> {
     device: &'a mut Device,
     active_view: MainView,
+    scrollfollowing: bool,
+    perm_scrollfollowing: bool,
 }
 
 impl EmulatorView<'_> {
@@ -27,6 +27,8 @@ impl EmulatorView<'_> {
         EmulatorView {
             device,
             active_view: MainView::Program,
+            scrollfollowing: false,
+            perm_scrollfollowing: false,
         }
     }
 }
@@ -46,6 +48,11 @@ pub fn run_emulator(device: &mut Device) -> Result<JoinHandle<()>, String> {
 
 impl Widget for EmulatorView<'_> {
     fn ui(mut self, ui: &mut egui::Ui) -> Response {
+        if !self.perm_scrollfollowing {
+            self.scrollfollowing = false
+        } else {
+            self.scrollfollowing = !self.device.cpu.is_busy();
+        }
         ui.group(|ui| {
             SidePanel::left("side_panel").show_inside(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -60,6 +67,7 @@ impl Widget for EmulatorView<'_> {
                         if ui.button("> Step").clicked() {
                             self.device.running = false;
                             self.device.step();
+                            self.scrollfollowing = true
                         }
                     }
 
@@ -106,7 +114,15 @@ impl Widget for EmulatorView<'_> {
                         ui.vertical(|ui| {
                             ui.label(format!(
                                 "IME: {:?}",
-                                self.device.cpu.interrupt_master_enable
+                                &self.device.cpu.interrupt_master_enable
+                            ));
+                            ui.label(format!(
+                                "IE: {:#02X}",
+                                &self.device.mem_map.io().ie_register.0
+                            ));
+                            ui.label(format!(
+                                "IF: {:#02X}",
+                                &self.device.mem_map.io().if_register.0
                             ));
                             ui.columns(3, |columns| {
                                 columns[0].label("");
@@ -201,6 +217,13 @@ impl Widget for EmulatorView<'_> {
                             });
                         });
                     });
+
+                ui.separator();
+
+                ui.checkbox(
+                    &mut self.perm_scrollfollowing,
+                    RichText::new("Scroll following").monospace(),
+                );
             });
 
             CentralPanel::default().show_inside(ui, |ui| {
@@ -247,7 +270,7 @@ impl Widget for EmulatorView<'_> {
                     }
                 });
 
-                ui.add(AsmTextTable::new(self.device));
+                ui.add(AsmTextTable::new(self.device, self.scrollfollowing));
 
                 // match self.active_view {
                 //     MainView::Program => {

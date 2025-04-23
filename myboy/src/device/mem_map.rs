@@ -31,8 +31,7 @@ impl MemMap {
     pub fn new(cartridge: Cartridge) -> MemMap {
         let working_ram = RWMemory::create(0x2000, 0xc000);
         let video_ram = RWMemory::create(0x2000, 0x8000);
-        let mut io_registers = IORegisters::new();
-        io_registers.init_defaults();
+        let io_registers = IORegisters::new();
         let object_attribute_memory = ObjectAttributeMemory::new();
         let hram = RWMemory::create(0x7f, 0xff80);
 

@@ -11,11 +11,14 @@ pub struct Cli {
     #[arg(short, long)]
     pub name: Option<String>,
 
-    #[command(subcommand)]
+    #[command(subcommand, flatten = true)]
     pub command: Option<Commands>,
 
     #[arg(long)]
     pub headless: bool,
+
+    #[arg(long)]
+    pub disable_logtypes: Option<Vec<LogOutput>>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -26,8 +29,5 @@ pub enum Commands {
 
         #[arg(short, long)]
         file: Option<PathBuf>,
-
-        #[arg(long)]
-        log_outputs: Option<Vec<LogOutput>>,
     },
 }

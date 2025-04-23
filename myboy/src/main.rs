@@ -16,26 +16,26 @@ use ppu::ppu::PPU;
 use ui::{app::AppTemplate, emulator_view::run_emulator};
 
 fn create_default_logger(cli: &Cli) -> Box<dyn Logger> {
-    if cli.headless {
-        Box::new(InMemoryLogger::default())
-    } else {
+    let disabled_logtypes = &cli.disable_logtypes;
+    let headless = cli.headless;
+    let mut logger: Box<dyn Logger> = if headless {
         Box::new(ConsoleLogger::default())
+    } else {
+        Box::new(InMemoryLogger::default())
+    };
+
+    if let Some(disabled_logtypes) = disabled_logtypes {
+        logger.set_disabled_outputs(disabled_logtypes.clone());
     }
+
+    logger
 }
 
 fn create_default_device(cli: &Cli) -> Option<Device> {
     match &cli.command {
-        Some(Commands::Device {
-            breakpoint,
-            file,
-            log_outputs,
-        }) => {
+        Some(Commands::Device { breakpoint, file }) => {
             if let Some(path) = file {
-                let mut logger = create_default_logger(cli);
-                if let Some(log_outputs) = log_outputs {
-                    logger.set_supported_outputs(log_outputs.clone());
-                }
-
+                let logger = create_default_logger(cli);
                 let cartridge = Cartridge::new(path);
                 let mut dev = Device::new(cartridge);
                 dev.logger = logger;
@@ -64,7 +64,6 @@ fn main() {
     let command = cli.command.clone().unwrap_or(Commands::Device {
         breakpoint: None,
         file: None,
-        log_outputs: None,
     });
 
     match command {
@@ -79,6 +78,9 @@ fn main() {
                     ));
                     return;
                 }
+                logger.info(logging::log::Log::Msg(
+                    "Running device in headless mode".to_string(),
+                ));
                 _ = run_device_headless(device.unwrap());
             } else {
                 _ = open_device_view(device);

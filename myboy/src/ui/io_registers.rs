@@ -1,6 +1,6 @@
 use egui::RichText;
 
-use crate::io::{if_register::InterruptType, io_registers::IORegisters};
+use crate::io::io_registers::IORegisters;
 
 pub struct IORegisterView<'a> {
     pub registers: &'a IORegisters,
@@ -9,6 +9,35 @@ pub struct IORegisterView<'a> {
 impl egui::Widget for IORegisterView<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         ui.vertical(|ui| {
+            ui.label(RichText::new("Serial Data").underline());
+            ui.horizontal(|ui| {
+                ui.label("SB (Serial transfer #FF01):");
+                ui.label(format!("0x{:02X}", self.registers.read_byte(0xff01)));
+            });
+            ui.horizontal(|ui| {
+                ui.label("SC (Serial control #FF02):");
+                ui.label(format!("0x{:02X}", self.registers.read_byte(0xff02)));
+            });
+
+            ui.label(RichText::new("Timers").underline());
+            ui.horizontal(|ui| {
+                ui.label("DIV (Divider #FF04):");
+                ui.label(format!("0x{:02X}", self.registers.read_byte(0xff04)))
+                    .on_hover_text(format!("System Counter: {:#X}", self.registers.timers.sys));
+            });
+            ui.horizontal(|ui| {
+                ui.label("TIMA (Timer #FF05):");
+                ui.label(format!("0x{:02X}", self.registers.read_byte(0xff05)));
+            });
+            ui.horizontal(|ui| {
+                ui.label("TMA (Timer Modulo #FF06):");
+                ui.label(format!("0x{:02X}", self.registers.read_byte(0xff06)));
+            });
+            ui.horizontal(|ui| {
+                ui.label("TAC (Timer Control #FF07):");
+                ui.label(format!("0x{:02X}", self.registers.read_byte(0xff07)));
+            });
+
             let lcdc_reg = self.registers.get_lcdl_register();
             ui.label(RichText::new("LCD-Control Register (#FF40)").underline());
             ui.horizontal(|ui| {
@@ -60,14 +89,6 @@ impl egui::Widget for IORegisterView<'_> {
             ui.horizontal(|ui| {
                 ui.label("#FF00:");
                 ui.label(format!("0x{:02X}", self.registers.read_byte(0xff00)));
-            });
-            ui.horizontal(|ui| {
-                ui.label("SB (Serial transfer #FF01):");
-                ui.label(format!("0x{:02X}", self.registers.read_byte(0xff01)));
-            });
-            ui.horizontal(|ui| {
-                ui.label("SC (Serial control #FF02):");
-                ui.label(format!("0x{:02X}", self.registers.read_byte(0xff02)));
             });
         })
         .response

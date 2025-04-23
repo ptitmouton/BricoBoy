@@ -8,9 +8,20 @@ pub enum InterruptType {
 
 pub struct IFRegister(pub u8);
 
+#[inline(always)]
+pub fn get_handler_address(interrupt_type: InterruptType) -> u16 {
+    match interrupt_type {
+        InterruptType::VBlank => 0x0040,
+        InterruptType::LCDStat => 0x0048,
+        InterruptType::Timer => 0x0050,
+        InterruptType::Serial => 0x0058,
+        InterruptType::Joypad => 0x0060,
+    }
+}
+
 impl IFRegister {
     pub fn new() -> IFRegister {
-        IFRegister(0x00)
+        IFRegister(0xe1)
     }
 
     pub fn is_requested(&self, interrupt_type: InterruptType) -> bool {
@@ -23,6 +34,14 @@ impl IFRegister {
 
     pub fn clear_request(&mut self, interrupt_type: InterruptType) {
         self.0 &= !(interrupt_type as u8);
+    }
+
+    pub fn read_byte(&self) -> u8 {
+        self.0
+    }
+
+    pub fn write_byte(&mut self, value: u8) {
+        self.0 = value;
     }
 }
 

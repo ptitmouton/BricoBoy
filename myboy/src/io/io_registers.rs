@@ -4,6 +4,7 @@ use super::{
     ie_register::IERegister,
     if_register::{IFRegister, InterruptType},
     lcdc::LCDCRegister,
+    timers::Timers,
 };
 
 pub struct IORegisters {
@@ -12,51 +13,48 @@ pub struct IORegisters {
     pub ie_register: IERegister,
     pub if_register: IFRegister,
     pub lcdc_register: LCDCRegister,
+    pub timers: Timers,
 }
 
 impl IORegisters {
     pub fn new() -> IORegisters {
+        let data = Self::default_data();
+
         let ie_register = IERegister::new();
         let if_register = IFRegister::new();
         let lcdc_register = LCDCRegister::new();
+        let timers = Timers::new();
 
         IORegisters {
-            data: [0; 256],
+            data,
             ie_register,
             if_register,
             lcdc_register,
+            timers,
         }
     }
 
-    pub fn get_timer_div(&self) -> u8 {
-        self.read_byte(0xff04)
-    }
-
-    pub fn inc_timer_div(&mut self) {
-        let current_div = self.read_byte(0xff04);
-        match current_div.overflowing_add(1) {
-            (new_val, false) => {
-                self.write_byte(0xff04, new_val);
-            }
-            (_, true) => {
-                // Reset to 0
-                self.write_byte(0xff04, 0);
-                self.get_if_register()
-                    .request_interrupt(InterruptType::Timer);
-            }
+    /*
+     * Reports that an mcycle has passed.
+     * This is used to update the DIV register and
+     * the TIMA.
+     * Every 64 mcycles, the DIV register is incremented
+     * See https://gbdev.io/pandocs/Timer_and_Divider_Registers.html
+     * for details on how the timers work
+     */
+    pub fn update_timers(&mut self) {
+        // true means it's time for a timer interrupt
+        if self.timers.tick() == true {
+            self.if_register.request_interrupt(InterruptType::Timer);
         }
-        self.write_byte(0xff04, self.read_byte(0xff04).wrapping_add(1));
     }
 
     pub fn get_lcdl_register(&self) -> LCDCRegister {
         LCDCRegister(self.read_byte(0xff40))
     }
 
-    pub fn get_if_register(&self) -> IFRegister {
-        IFRegister(self.read_byte(0xff0f))
-    }
-    pub fn set_if_register(&mut self, value: IFRegister) {
-        self.write_byte(0xff0f, value.0);
+    pub fn set_if_register(&mut self, value: u8) {
+        self.if_register.0 = value & 0x1f;
     }
 
     pub fn get_lcd_ly(&self) -> u8 {
@@ -74,11 +72,21 @@ impl IORegisters {
 
     #[inline]
     pub fn read_byte(&self, address: u16) -> u8 {
-        if address == 0xff44 {
-            return 0x90;
+        match address {
+            // TODO: ff01 and ff02 are the serial registers
+            0xff04 | 0xff05 | 0xff06 | 0xff07 => return self.timers.read_byte(address),
+            0xff0f => return self.if_register.read_byte(),
+            0xffff => return self.ie_register.read_byte(),
+            0xff44 => {
+                // LY register is read-only
+                // This is just for now ...
+                return 0x90;
+            }
+            _ => {
+                let translated_address: usize = (address - self.offset() as u16).into();
+                self.data[translated_address]
+            }
         }
-        let translated_address: usize = (address - self.offset() as u16).into();
-        self.data[translated_address]
     }
 
     #[inline]
@@ -86,39 +94,53 @@ impl IORegisters {
         if address == 0xff44 {
             return;
         }
-        let translated_address: usize = (address - self.offset() as u16).into();
-        self.data[translated_address] = value;
+        match address {
+            // TODO: ff01 and ff02 are the serial registers
+            0xff04 | 0xff05 | 0xff06 | 0xff07 => return self.timers.write_byte(address, value),
+            0xff0f => return self.if_register.write_byte(value),
+            0xffff => return self.ie_register.write_byte(value),
+            0xff44 => {
+                // LY register is read-only
+                // This is just for now ...
+                return;
+            }
+            _ => {
+                let translated_address: usize = (address - self.offset() as u16).into();
+                self.data[translated_address] = value;
+            }
+        }
     }
 
-    pub fn init_defaults(&mut self) {
-        self.write_byte(0xff00, 0xcf);
-        self.write_byte(0xff02, 0x7e);
-        self.write_byte(0xff04, 0x18);
-        self.write_byte(0xff07, 0xf8);
-        self.write_byte(0xff0f, 0xe1);
-        self.write_byte(0xff10, 0x80);
-        self.write_byte(0xff11, 0xbf);
-        self.write_byte(0xff12, 0xf3);
-        self.write_byte(0xff13, 0xff);
-        self.write_byte(0xff14, 0xbf);
-        self.write_byte(0xff16, 0x3f);
-        self.write_byte(0xff18, 0xff);
-        self.write_byte(0xff19, 0xbf);
-        self.write_byte(0xff1a, 0x7f);
-        self.write_byte(0xff1b, 0xff);
-        self.write_byte(0xff1c, 0x9f);
-        self.write_byte(0xff1d, 0xff);
-        self.write_byte(0xff1e, 0xbf);
-        self.write_byte(0xff20, 0xff);
-        self.write_byte(0xff23, 0xbf);
-        self.write_byte(0xff24, 0x77);
-        self.write_byte(0xff25, 0xf3);
-        self.write_byte(0xff26, 0xf1);
-        self.write_byte(0xff40, 0x91);
-        self.write_byte(0xff41, 0x81);
-        self.write_byte(0xff44, 0x90);
-        self.write_byte(0xff46, 0xff);
-        self.write_byte(0xff47, 0xfc);
+    pub fn default_data() -> [u8; 256] {
+        let mut data = [0; 256];
+        data[0x00] = 0xcf;
+        data[0x02] = 0x7e;
+        data[0x0f] = 0xe1;
+        data[0x10] = 0x80;
+        data[0x11] = 0xbf;
+        data[0x12] = 0xf3;
+        data[0x13] = 0xff;
+        data[0x14] = 0xbf;
+        data[0x16] = 0x3f;
+        data[0x18] = 0xff;
+        data[0x19] = 0xbf;
+        data[0x1a] = 0x7f;
+        data[0x1b] = 0xff;
+        data[0x1c] = 0x9f;
+        data[0x1d] = 0xff;
+        data[0x1e] = 0xbf;
+        data[0x20] = 0xff;
+        data[0x23] = 0xbf;
+        data[0x24] = 0x77;
+        data[0x25] = 0xf3;
+        data[0x26] = 0xf1;
+        data[0x40] = 0x91;
+        data[0x41] = 0x81;
+        data[0x44] = 0x90;
+        data[0x46] = 0xff;
+        data[0x47] = 0xfc;
+
+        data
     }
 }
 
