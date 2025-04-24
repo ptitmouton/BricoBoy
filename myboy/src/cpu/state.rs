@@ -1,4 +1,3 @@
-use crate::Device;
 use crate::cpu::{ByteRegister, WordRegister};
 use crate::device::mem_map::MemMap;
 use std::fmt::Debug;

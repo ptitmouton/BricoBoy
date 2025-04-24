@@ -13,27 +13,27 @@
 
 use crate::{
     io::io_registers::IORegisters,
-    memory::generic_memory::{RWMemory, ReadableMemory, WritableMemory},
-    ppu::object_attribute_memory::ObjectAttributeMemory,
+    memory::{generic_memory::GenericMemory as _, hram::HRAM, vram::VRAM, wram::WRAM},
+    ppu::oam::OAM,
 };
 use mygbcartridge::{cartridge::Cartridge, enums::cartridge_type::CartridgeType};
 
 pub struct MemMap {
     pub(crate) cartridge: Cartridge,
-    pub working_ram: RWMemory,
-    pub video_ram: RWMemory,
+    pub working_ram: WRAM,
+    pub video_ram: VRAM,
     pub io_registers: IORegisters,
-    pub object_attribute_memory: ObjectAttributeMemory,
-    pub hram: RWMemory,
+    pub object_attribute_memory: OAM,
+    pub hram: HRAM,
 }
 
 impl MemMap {
     pub fn new(cartridge: Cartridge) -> MemMap {
-        let working_ram = RWMemory::create(0x2000, 0xc000);
-        let video_ram = RWMemory::create(0x2000, 0x8000);
+        let working_ram = WRAM::new();
+        let video_ram = VRAM::new();
         let io_registers = IORegisters::new();
-        let object_attribute_memory = ObjectAttributeMemory::new();
-        let hram = RWMemory::create(0x7f, 0xff80);
+        let object_attribute_memory = OAM::new();
+        let hram = HRAM::new();
 
         MemMap {
             cartridge,

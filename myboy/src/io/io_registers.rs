@@ -1,4 +1,4 @@
-use crate::memory::generic_memory::OffsetMemory;
+use crate::memory::generic_memory::{GenericMemory, OffsetMemory, ReadableMemory, WritableMemory};
 
 use super::{
     ie_register::IERegister,
@@ -14,6 +14,30 @@ pub struct IORegisters {
     pub if_register: IFRegister,
     pub lcdc_register: LCDCRegister,
     pub timers: Timers,
+}
+
+impl OffsetMemory for IORegisters {
+    fn offset(&self) -> u16 {
+        0xff00
+    }
+}
+
+impl GenericMemory<256> for IORegisters {
+    fn read_byte(&self, address: u16) -> u8 {
+        self.data.read_byte(self.map_address(address))
+    }
+
+    fn write_byte(&mut self, address: u16, value: u8) {
+        self.data.write_byte(address, value)
+    }
+
+    fn read_word(&self, address: u16) -> u16 {
+        self.data.read_word(self.map_address(address))
+    }
+
+    fn write_word(&mut self, address: u16, value: u16) {
+        self.data.write_word(address, value)
+    }
 }
 
 impl IORegisters {
@@ -135,11 +159,5 @@ impl IORegisters {
         data[0x47] = 0xfc;
 
         data
-    }
-}
-
-impl OffsetMemory for IORegisters {
-    fn offset(&self) -> usize {
-        0xff00
     }
 }

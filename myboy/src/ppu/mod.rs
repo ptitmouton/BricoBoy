@@ -1,2 +1,3 @@
-pub(crate) mod object_attribute_memory;
+pub(crate) mod oam;
 pub(crate) mod ppu;
+pub(crate) mod sprite;

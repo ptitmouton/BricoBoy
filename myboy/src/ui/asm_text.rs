@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub struct AsmTextTable<'a> {
-    device: &'a mut Device,
+    device: &'a mut Device<'static>,
     autoscroll: bool,
 }
 
@@ -34,8 +34,8 @@ impl<'a> Widget for AsmTextTable<'a> {
     }
 }
 
-impl AsmTextTable<'_> {
-    pub fn new(device: &mut Device, autoscroll: bool) -> AsmTextTable<'_> {
+impl<'a> AsmTextTable<'a> {
+    pub fn new(device: &'a mut Device<'static>, autoscroll: bool) -> AsmTextTable<'a> {
         AsmTextTable { device, autoscroll }
     }
 

@@ -3,7 +3,7 @@ use egui::RichText;
 use crate::Device;
 
 pub struct SerialOutputView<'a> {
-    pub device: &'a Device,
+    pub device: &'a Device<'static>,
 }
 
 impl egui::Widget for SerialOutputView<'_> {
@@ -18,7 +18,7 @@ impl egui::Widget for SerialOutputView<'_> {
 }
 
 impl SerialOutputView<'_> {
-    pub fn new(device: &Device) -> SerialOutputView<'_> {
+    pub fn new(device: &'static Device) -> SerialOutputView<'static> {
         SerialOutputView { device }
     }
 }

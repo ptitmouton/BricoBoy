@@ -1,88 +1,65 @@
-pub trait ReadableMemory {
+pub trait ReadableMemory<const SIZE: usize> {
     fn read_byte(&self, address: u16) -> u8;
-    fn read_fixed_bytes<const L: usize>(&self, address: u16, length: usize) -> &[u8; L];
     fn read_word(&self, address: u16) -> u16;
 }
 
-pub trait WritableMemory {
+pub trait WritableMemory<const SIZE: usize> {
     fn write_byte(&mut self, address: u16, value: u8);
-    fn write_bytes(&mut self, address: u16, value: &[u8]);
     fn write_word(&mut self, address: u16, value: u16);
 }
 
 pub trait OffsetMemory {
-    fn offset(&self) -> usize;
-    fn map_address(&self, address: u16) -> usize {
-        (address as usize) - self.offset()
+    fn offset(&self) -> u16;
+    fn map_address(&self, address: u16) -> u16 {
+        address - self.offset()
     }
 }
 
-impl OffsetMemory for RWMemory {
-    fn offset(&self) -> usize {
-        self.offset
+impl<const SIZE: usize> OffsetMemory for [u8; SIZE] {
+    fn offset(&self) -> u16 {
+        0
     }
 }
 
-impl RWMemory {
-    pub fn read_byte(&self, address: u16) -> u8 {
-        self.data[self.map_address(address)]
-    }
-
-    pub fn create(size: usize, offset: usize) -> RWMemory {
-        RWMemory {
-            data: vec![0; size + 2],
-            offset,
-            size,
-        }
-    }
-}
-
-impl ReadableMemory for RWMemory {
+impl<const SIZE: usize> ReadableMemory<SIZE> for [u8; SIZE]
+where
+    Self: OffsetMemory,
+{
     fn read_byte(&self, address: u16) -> u8 {
         let mapped_address = self.map_address(address);
-        if (mapped_address as usize) >= self.size {
-            0x00
-        } else {
-            self.data[mapped_address]
-        }
+        self[mapped_address as usize]
     }
 
     fn read_word(&self, address: u16) -> u16 {
-        let results = *self.read_fixed_bytes(address, 2);
-        return u16::from_le_bytes(results);
-    }
-
-    fn read_fixed_bytes<const L: usize>(&self, address: u16, length: usize) -> &[u8; L] {
         let mapped_address = self.map_address(address);
-        self.data[mapped_address..mapped_address + length]
-            .try_into()
-            .unwrap()
+        return u16::from_le_bytes(
+            self[(mapped_address as usize)..(mapped_address as usize) + 2]
+                .try_into()
+                .unwrap(),
+        );
     }
 }
 
-impl WritableMemory for RWMemory {
+impl<const SIZE: usize> WritableMemory<SIZE> for [u8; SIZE]
+where
+    Self: OffsetMemory,
+{
     fn write_byte(&mut self, address: u16, value: u8) {
         let mapped_address = self.map_address(address);
-        self.data[mapped_address] = value;
+        self[mapped_address as usize] = value;
     }
 
     fn write_word(&mut self, address: u16, value: u16) {
-        let mapped_address = self.map_address(address);
+        let mapped_address = self.map_address(address) as usize;
         let values = value.to_le_bytes();
-        self.data[mapped_address] = values[0];
-        self.data[mapped_address + 1] = values[1];
-    }
-
-    fn write_bytes(&mut self, address: u16, value: &[u8]) {
-        let mapped_address = self.map_address(address) as u16;
-        for (i, byte) in value.iter().enumerate() {
-            self.write_byte(mapped_address + i as u16, *byte);
-        }
+        self[mapped_address] = values[0];
+        self[mapped_address + 1] = values[1];
     }
 }
 
-pub struct RWMemory {
-    data: Vec<u8>,
-    offset: usize,
-    size: usize,
+pub trait GenericMemory<const SIZE: usize> {
+    fn read_byte(&self, address: u16) -> u8;
+    fn write_byte(&mut self, address: u16, value: u8);
+    fn read_word(&self, address: u16) -> u16;
+    fn write_word(&mut self, address: u16, value: u16);
 }

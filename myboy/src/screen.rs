@@ -74,7 +74,7 @@ pub fn open_gamescreen(mut device: Device) -> Result<(), Error> {
 
             // Draw the current frame
             Event::RedrawRequested(_) => {
-                device.draw_screen(pixels.frame_mut());
+                // device.draw_screen(pixels.frame_mut());
 
                 if let Err(_) = pixels.render() {
                     *control_flow = ControlFlow::Exit;

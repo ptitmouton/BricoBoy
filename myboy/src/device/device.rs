@@ -10,8 +10,8 @@ use crate::{PPU, cpu::CPU};
 
 use super::mem_map::MemMap;
 
-pub(crate) struct Device {
-    pub ppu: PPU,
+pub(crate) struct Device<'a> {
+    pub ppu: PPU<'a>,
     pub cpu: CPU,
     pub mem_map: MemMap,
     pub screen: Box<[u8]>,
@@ -29,8 +29,8 @@ pub(crate) struct Device {
     pub logger: Box<dyn Logger>,
 }
 
-impl Device {
-    pub fn new(cartridge: Cartridge) -> Device {
+impl<'a> Device<'a> {
+    pub fn new(cartridge: Cartridge) -> Device<'a> {
         let mem_map = MemMap::new(cartridge.clone());
         let cpu = CPU::new();
         let ppu = PPU::new();
@@ -78,7 +78,7 @@ impl Device {
         self.mem_map.io_registers.get_lcdl_register().lcd_enabled()
     }
 
-    fn run_loop<'a>(&'a mut self) {
+    fn run_loop(&mut self) {
         loop {
             if let Some(addr) = self.breakpoint {
                 if *self.cpu.register_set.pc() == addr {
@@ -108,7 +108,7 @@ impl Device {
         self.check_serial();
     }
 
-    fn cycle<'a>(&'a mut self) {
+    fn cycle(&mut self) {
         let speed_multiplier = self.speed_multiplier;
         unsafe {
             let cycle_start = Instant::now();

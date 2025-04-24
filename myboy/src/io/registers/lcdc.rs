@@ -25,6 +25,12 @@ impl LCDCRegister {
         self.0 & 0b0000_1000
     }
 
+    #[inline]
+    pub fn sprite_pixel_size(&self) -> u8 {
+        let multiplicator = (self.0 & 0b0000_0100 >> 2) + 1;
+        multiplicator * 8
+    }
+
     pub fn obj_size(&self) -> u8 {
         self.0 & 0b0000_0100
     }

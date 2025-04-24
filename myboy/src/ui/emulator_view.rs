@@ -4,10 +4,7 @@ use egui::{CentralPanel, CollapsingHeader, Response, RichText, SidePanel, Widget
 
 use crate::{device::device::Device, io::if_register::InterruptType};
 
-use super::{
-    asm_text::AsmTextTable, cpu_registers::CPURegisterView, io_registers::IORegisterView,
-    serial_output::SerialOutputView,
-};
+use super::{asm_text::AsmTextTable, cpu_registers::CPURegisterView, io_registers::IORegisterView};
 
 enum MainView {
     Program,
@@ -15,15 +12,15 @@ enum MainView {
     Serial,
 }
 
-pub struct EmulatorView<'a> {
-    device: &'a mut Device,
+pub struct EmulatorView {
+    device: Box<Device<'static>>,
     active_view: MainView,
     scrollfollowing: bool,
     perm_scrollfollowing: bool,
 }
 
-impl EmulatorView<'_> {
-    pub fn new(device: &mut Device) -> EmulatorView {
+impl EmulatorView {
+    pub fn new(device: Box<Device<'static>>) -> EmulatorView {
         EmulatorView {
             device,
             active_view: MainView::Program,
@@ -46,14 +43,14 @@ pub fn run_emulator(device: &mut Device) -> Result<JoinHandle<()>, String> {
     }
 }
 
-impl Widget for EmulatorView<'_> {
+impl Widget for EmulatorView {
     fn ui(mut self, ui: &mut egui::Ui) -> Response {
         if !self.perm_scrollfollowing {
             self.scrollfollowing = false
         } else {
             self.scrollfollowing = !self.device.cpu.is_busy();
         }
-        ui.group(|ui| {
+        ui.group(move |ui| {
             SidePanel::left("side_panel").show_inside(ui, |ui| {
                 ui.horizontal(|ui| {
                     if self.device.running {
@@ -62,7 +59,7 @@ impl Widget for EmulatorView<'_> {
                         }
                     } else {
                         if ui.button("Run").clicked() {
-                            let _ = run_emulator(self.device);
+                            let _ = run_emulator(&mut self.device);
                         }
                         if ui.button("> Step").clicked() {
                             self.device.running = false;
@@ -270,7 +267,7 @@ impl Widget for EmulatorView<'_> {
                     }
                 });
 
-                ui.add(AsmTextTable::new(self.device, self.scrollfollowing));
+                ui.add(AsmTextTable::new(&mut self.device, self.scrollfollowing));
 
                 // match self.active_view {
                 //     MainView::Program => {
@@ -292,12 +289,12 @@ impl Widget for EmulatorView<'_> {
                 // };
             });
 
-            SidePanel::right("side_panel_r").show_inside(ui, |ui| {
+            SidePanel::right("side_panel_r").show_inside(ui, move |ui| {
                 ui.label("Serial Output");
-                ui.add_sized(
-                    ui.available_size().min(egui::Vec2 { x: 400.0, y: 600.0 }),
-                    SerialOutputView::new(self.device),
-                );
+                // ui.add_sized(
+                //     ui.available_size().min(egui::Vec2 { x: 400.0, y: 600.0 }),
+                //     SerialOutputView::new(&mut self.device),
+                // );
             });
         })
         .response

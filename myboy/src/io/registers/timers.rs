@@ -10,7 +10,7 @@ pub struct Timers {
 }
 
 impl OffsetMemory for Timers {
-    fn offset(&self) -> usize {
+    fn offset(&self) -> u16 {
         0xff04
     }
 }
