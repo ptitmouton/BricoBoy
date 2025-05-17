@@ -1,12 +1,12 @@
 use super::generic_memory::{GenericMemory, OffsetMemory, ReadableMemory, WritableMemory};
 
 pub struct WRAM {
-    pub data: [u8; 4096],
+    pub data: [u8; 8192],
 }
 
 impl OffsetMemory for WRAM {
     fn offset(&self) -> u16 {
-        0x8000
+        0xc000
     }
 }
 
@@ -16,7 +16,7 @@ impl GenericMemory<8192> for WRAM {
     }
 
     fn write_byte(&mut self, address: u16, value: u8) {
-        self.data.write_byte(address, value)
+        self.data.write_byte(self.map_address(address), value)
     }
 
     fn read_word(&self, address: u16) -> u16 {
@@ -24,13 +24,13 @@ impl GenericMemory<8192> for WRAM {
     }
 
     fn write_word(&mut self, address: u16, value: u16) {
-        self.data.write_word(address, value)
+        self.data.write_word(self.map_address(address), value)
     }
 }
 
 impl WRAM {
     pub fn new() -> WRAM {
-        let data = [0; 4096];
+        let data = [0; 8192];
 
         WRAM { data }
     }

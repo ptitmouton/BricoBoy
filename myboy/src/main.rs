@@ -15,7 +15,7 @@ use logging::log::{ConsoleLogger, Logger};
 use mygbcartridge::cartridge::Cartridge;
 use ppu::ppu::PPU;
 use screen::open_gamescreen;
-use ui::{app::AppTemplate, emulator_view::run_emulator};
+use ui::emulator_view::run_emulator;
 
 fn create_default_logger(cli: &Cli) -> Box<dyn Logger> {
     let disabled_logtypes = &cli.disable_logtypes.clone();

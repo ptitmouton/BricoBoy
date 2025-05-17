@@ -4,6 +4,7 @@ use super::{
     ie_register::IERegister,
     if_register::{IFRegister, InterruptType},
     lcdc::LCDCRegister,
+    // lcdpos::LCDPosRegister,
     timers::Timers,
 };
 
@@ -13,6 +14,7 @@ pub struct IORegisters {
     pub ie_register: IERegister,
     pub if_register: IFRegister,
     pub lcdc_register: LCDCRegister,
+    // pub lcdpos_register: LCDPosRegister,
     pub timers: Timers,
 }
 
@@ -47,6 +49,7 @@ impl IORegisters {
         let ie_register = IERegister::new();
         let if_register = IFRegister::new();
         let lcdc_register = LCDCRegister::new();
+        // let lcdpos_register = LCDPosRegister::new();
         let timers = Timers::new();
 
         IORegisters {
@@ -54,6 +57,7 @@ impl IORegisters {
             ie_register,
             if_register,
             lcdc_register,
+            // lcdpos_register,
             timers,
         }
     }
@@ -73,7 +77,7 @@ impl IORegisters {
         }
     }
 
-    pub fn get_lcdl_register(&self) -> LCDCRegister {
+    pub fn get_lcdc_register(&self) -> LCDCRegister {
         LCDCRegister(self.read_byte(0xff40))
     }
 
@@ -93,11 +97,28 @@ impl IORegisters {
         self.read_byte(0xff41)
     }
 
+    pub fn get_scy(&self) -> u8 {
+        self.read_byte(0xff42)
+    }
+
+    pub fn get_scx(&self) -> u8 {
+        self.read_byte(0xff43)
+    }
+
+    pub fn get_wy(&self) -> u8 {
+        self.read_byte(0xff4a)
+    }
+
+    pub fn get_wx(&self) -> u8 {
+        self.read_byte(0xff4b)
+    }
+
     #[inline]
     pub fn read_byte(&self, address: u16) -> u8 {
         match address {
             // TODO: ff01 and ff02 are the serial registers
             0xff04 | 0xff05 | 0xff06 | 0xff07 => return self.timers.read_byte(address),
+            0xff40 => return self.lcdc_register.0,
             0xff0f => return self.if_register.read_byte(),
             0xffff => return self.ie_register.read_byte(),
             _ => {
@@ -115,6 +136,7 @@ impl IORegisters {
         match address {
             // TODO: ff01 and ff02 are the serial registers
             0xff04 | 0xff05 | 0xff06 | 0xff07 => return self.timers.write_byte(address, value),
+            0xff40 => self.lcdc_register.0 = value,
             0xff0f => return self.if_register.write_byte(value),
             0xffff => return self.ie_register.write_byte(value),
             0xff44 => {
@@ -152,7 +174,6 @@ impl IORegisters {
         data[0x24] = 0x77;
         data[0x25] = 0xf3;
         data[0x26] = 0xf1;
-        data[0x40] = 0x91;
         data[0x41] = 0x81;
         data[0x44] = 0x90;
         data[0x46] = 0xff;

@@ -16,7 +16,7 @@ impl GenericMemory<127> for HRAM {
     }
 
     fn write_byte(&mut self, address: u16, value: u8) {
-        self.data.write_byte(address, value)
+        self.data.write_byte(self.map_address(address), value)
     }
 
     fn read_word(&self, address: u16) -> u16 {
@@ -24,7 +24,7 @@ impl GenericMemory<127> for HRAM {
     }
 
     fn write_word(&mut self, address: u16, value: u16) {
-        self.data.write_word(address, value)
+        self.data.write_word(self.map_address(address), value)
     }
 }
 

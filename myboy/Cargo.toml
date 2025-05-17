@@ -21,3 +21,4 @@ clap = { version = "4.5.35", features = ["derive"] }
 clap-num = "1.2.0"
 pixels = "0.15.0"
 tao = "0.33.0"
+fixed-vec-deque = "0.1.11"

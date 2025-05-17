@@ -72,7 +72,6 @@ impl OAM {
 
     #[inline]
     pub(crate) fn write_byte(&mut self, address: u16, value: u8) {
-        println!("Writing to IO register: 0x{:2x}", address);
         let translated_address = address - self.offset();
         self.data[translated_address as usize] = value;
     }

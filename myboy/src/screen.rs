@@ -13,7 +13,7 @@ use crate::ui::emulator_view::run_emulator;
 pub const WIDTH: u32 = 160;
 pub const HEIGHT: u32 = 144;
 
-pub fn open_gamescreen(mut device: Device) -> Result<(), Error> {
+pub fn open_gamescreen(mut device: Device<'static>) -> Result<(), Error> {
     let event_loop = EventLoop::new();
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
@@ -74,7 +74,7 @@ pub fn open_gamescreen(mut device: Device) -> Result<(), Error> {
 
             // Draw the current frame
             Event::RedrawRequested(_) => {
-                // device.draw_screen(pixels.frame_mut());
+                device.draw_screen(pixels.frame_mut());
 
                 if let Err(_) = pixels.render() {
                     *control_flow = ControlFlow::Exit;

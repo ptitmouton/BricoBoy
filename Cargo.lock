@@ -623,6 +623,7 @@ dependencies = [
  "egui",
  "egui_extras",
  "features",
+ "fixed-vec-deque",
  "full",
  "mygbcartridge",
  "pixels",
@@ -1415,6 +1416,12 @@ dependencies = [
  "memoffset",
  "rustc_version",
 ]
+
+[[package]]
+name = "fixed-vec-deque"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1ed20dca398154f12a72106dfef4ec6478b322345c8988abb6a0ae0a48ebfa5"
 
 [[package]]
 name = "flate2"

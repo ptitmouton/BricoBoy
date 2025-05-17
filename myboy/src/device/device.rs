@@ -35,7 +35,7 @@ impl<'a> Device<'a> {
         let cpu = CPU::new();
         let ppu = PPU::new();
 
-        let screen = Box::new([0 as u8; 160 * 144 * 4]);
+        let screen = Box::new([0xff as u8; 160 * 144 * 4]);
 
         let running = false;
         let serial_buffer = Vec::new();
@@ -75,7 +75,7 @@ impl<'a> Device<'a> {
     }
 
     pub(crate) fn ppu_enabled(&self) -> bool {
-        self.mem_map.io_registers.get_lcdl_register().lcd_enabled()
+        self.mem_map.io_registers.get_lcdc_register().lcd_enabled()
     }
 
     fn run_loop(&mut self) {

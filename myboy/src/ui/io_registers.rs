@@ -38,7 +38,7 @@ impl egui::Widget for IORegisterView<'_> {
                 ui.label(format!("0x{:02X}", self.registers.read_byte(0xff07)));
             });
 
-            let lcdc_reg = self.registers.get_lcdl_register();
+            let lcdc_reg = self.registers.get_lcdc_register();
             ui.label(RichText::new("LCD-Control Register (#FF40)").underline());
             ui.horizontal(|ui| {
                 ui.label("LCD Enabled:");
@@ -54,7 +54,7 @@ impl egui::Widget for IORegisterView<'_> {
             });
             ui.horizontal(|ui| {
                 ui.label("BG & Window Tile Data Select:");
-                ui.label(format!("{}", lcdc_reg.bg_tile_data_bank()));
+                ui.label(format!("{}", lcdc_reg.bgwin_tile_data_area()));
             });
             ui.horizontal(|ui| {
                 ui.label("BG Tile Map Display Select:");
@@ -70,7 +70,7 @@ impl egui::Widget for IORegisterView<'_> {
             });
             ui.horizontal(|ui| {
                 ui.label("BG Display:");
-                ui.label(format!("{}", lcdc_reg.bg_enabled()));
+                ui.label(format!("{}", lcdc_reg.bgwin_enabled()));
             });
 
             ui.separator();
